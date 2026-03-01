@@ -1,67 +1,95 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+"""
+Exercise-3 — Medición de Timestamps entre 2 Switches (MySec)
 
-import argparse
+Topología:  h1 ── s1 ── s2 ── h2
+
+El protocolo MySec (IP proto 169) viaja h1->s1->s2->s1->h1 midiendo
+tiempos de procesamiento en cada switch.
+
+Uso:
+  1. Compilar P4:
+       mkdir -p p4src/build
+       p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \
+           --p4runtime-files p4src/build/p4info.txt p4src/main.p4
+
+  2. Ejecutar topología (desde la carpeta del ejercicio):
+       sudo python3 mininet/topo.py
+
+  3. En otra terminal, instalar reglas en ambos switches:
+       simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+       simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+
+  4. Verificar en la CLI de Mininet:
+       mininet> pingall
+       mininet> h1 python3 send_mysec.py
+"""
+
+import os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from p4_mininet import P4Switch, P4Host
 
 from mininet.cli import CLI
 from mininet.log import setLogLevel
 from mininet.net import Mininet
-from mininet.node import Host
 from mininet.topo import Topo
-
-from mininet.node import RemoteController
 from mininet.link import TCLink
-from mininet.node import CPULimitedHost
 
-import sys
-
-sys.path.insert(0, '/mininet')
-from stratum2 import StratumBmv2Switch
-
-CPU_PORT = 255
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_PATH = os.path.join(SCRIPT_DIR, '..', 'p4src', 'build', 'bmv2.json')
 
 
-class TutorialTopo(Topo):
+class Exercise3Topo(Topo):
+    def build(self):
+        # Switches: s1 (thrift 9090), s2 (thrift 9091)
+        s1 = self.addSwitch('s1',
+                            cls=P4Switch,
+                            json_path=JSON_PATH,
+                            thrift_port=9090)
+        s2 = self.addSwitch('s2',
+                            cls=P4Switch,
+                            json_path=JSON_PATH,
+                            thrift_port=9091)
 
-    def __init__(self, *args, **kwargs):
-        Topo.__init__(self, *args, **kwargs)
-        
-        #Switches
-        s1 = self.addSwitch('s1', cls=StratumBmv2Switch, cpuport=CPU_PORT)
-        s2 = self.addSwitch('s2', cls=StratumBmv2Switch, cpuport=CPU_PORT)
-        
-        #Hosts
-        h1 = self.addHost('h1', ip='10.0.0.1/24', mac='00:00:00:00:00:01')
-        h2 = self.addHost('h2', ip='10.0.0.2/24', mac='00:00:00:00:00:02')
+        # Hosts
+        h1 = self.addHost('h1', cls=P4Host,
+                          ip='10.0.0.1/24', mac='00:00:00:00:00:01')
+        h2 = self.addHost('h2', cls=P4Host,
+                          ip='10.0.0.2/24', mac='00:00:00:00:00:02')
 
-        #Links: h1-s1 (s1:port1), s1-s2 (s1:port2, s2:port1), s2-h2 (s2:port2)
-        self.addLink('h1', 's1', bw=5, delay='5ms', loss=1, use_htb=True)
-        self.addLink('s1', 's2', bw=5, delay='5ms', loss=1, use_htb=True)
-        self.addLink('s2', 'h2', bw=5, delay='5ms', loss=1, use_htb=True)
-
-
-
-
+        # Links:  h1-s1 (s1:port1), s1-s2 (s1:port2, s2:port1), s2-h2 (s2:port2)
+        self.addLink(h1, s1, bw=5, delay='5ms', loss=1, use_htb=True)
+        self.addLink(s1, s2, bw=5, delay='5ms', loss=1, use_htb=True)
+        self.addLink(s2, h2, bw=5, delay='5ms', loss=1, use_htb=True)
 
 
 def main():
-	net = Mininet(topo=TutorialTopo(), controller=None, link=TCLink)
-	net.staticArp() #Avoiding ARP process
-	net.start()
-	CLI(net)
-	net.stop()
-	print('#' * 80)
-	print('ATTENTION: Mininet was stopped! Perhaps accidentally?')
-	print('No worries, it will restart automatically in a few seconds...')
-	print('To access again the Mininet CLI, use `make mn-cli`')
-	print('To detach from the CLI (without stopping), press Ctrl-D')
-	print('To permanently quit Mininet, use `make stop`')
-	print('#' * 80)
+    if not os.path.isfile(JSON_PATH):
+        print("ERROR: No se encontro %s" % JSON_PATH)
+        print("Compilar primero:")
+        print("  mkdir -p p4src/build")
+        print("  p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \\")
+        print("      --p4runtime-files p4src/build/p4info.txt p4src/main.p4")
+        sys.exit(1)
+
+    net = Mininet(topo=Exercise3Topo(), controller=None, link=TCLink)
+    net.staticArp()
+    net.start()
+
+    print("\n" + "=" * 60)
+    print("Topologia activa (2 switches).  En otra terminal:")
+    print("  simple_switch_CLI --thrift-port 9090 < s1-commands.txt")
+    print("  simple_switch_CLI --thrift-port 9091 < s2-commands.txt")
+    print("")
+    print("Verificar:  pingall")
+    print("MySec test: h1 python3 send_mysec.py")
+    print("=" * 60 + "\n")
+
+    CLI(net)
+    net.stop()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description='Mininet topology script for 2x2 fabric with stratum_bmv2 and IPv4 hosts')
-    args = parser.parse_args()
     setLogLevel('info')
-
     main()

@@ -1,75 +1,98 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+"""
+Exercise-2.2 — Filtrado de Sesiones TCP
 
-import argparse
+El switch filtra paquetes TCP que no pertenecen a una sesión registrada
+y genera un RST para conexiones no autorizadas.
+
+Topología:  h1 ── s1 ── h2
+
+Uso:
+  1. Compilar P4:
+       mkdir -p p4src/build
+       p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \
+           --p4runtime-files p4src/build/p4info.txt p4src/sw_gita.p4
+
+  2. Ejecutar topología (desde la carpeta del ejercicio):
+       sudo python3 mininet/topo.py
+
+  3. En otra terminal, instalar reglas base:
+       simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+
+  4. Para probar filtrado TCP:
+       - Registrar sesion SSH (ver add_tcp_session.sh)
+       - mininet> h2 /usr/sbin/sshd &
+       - mininet> h1 ssh 10.0.0.2
+"""
+
+import os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from p4_mininet import P4Switch, P4Host
 
 from mininet.cli import CLI
 from mininet.log import setLogLevel
 from mininet.net import Mininet
-from mininet.node import Host
 from mininet.topo import Topo
-
-from mininet.node import RemoteController
 from mininet.link import TCLink
-from mininet.node import CPULimitedHost
 
-import sys
-
-sys.path.insert(0, '/mininet')
-#from stratum_new import StratumBmv2Switch
-from stratum2 import StratumBmv2Switch
-from stratum2 import NoOffloadHost
-
-CPU_PORT = 255
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_PATH = os.path.join(SCRIPT_DIR, '..', 'p4src', 'build', 'bmv2.json')
 
 
-class TutorialTopo(Topo):
-    """2x2 fabric topology with IPv4 hosts"""
+class Exercise22Topo(Topo):
+    def build(self):
+        # Switch
+        s1 = self.addSwitch('s1',
+                            cls=P4Switch,
+                            json_path=JSON_PATH,
+                            thrift_port=9090)
 
-    def __init__(self, *args, **kwargs):
-        Topo.__init__(self, *args, **kwargs)
+        # Hosts
+        h1 = self.addHost('h1', cls=P4Host,
+                          ip='10.0.0.1/24', mac='00:00:00:00:00:01')
+        h2 = self.addHost('h2', cls=P4Host,
+                          ip='10.0.0.2/24', mac='00:00:00:00:00:02')
 
-        # Leaves
+        # Links
+        self.addLink(h1, s1, bw=5, delay='5ms', loss=1, use_htb=True)
+        self.addLink(h2, s1, bw=5, delay='5ms', loss=1, use_htb=True)
 
-
-        # Exercise 2.2 TO-DO:
-        # Set the name of the switch, the path to the JSON file (the output of
-        # the p4c compiler), and set the loglevel to trace to make easier to debug
-        # possible issues with the switch.
-        
-        s1 = self.addSwitch(name='s1', cls=StratumBmv2Switch, cpuport=CPU_PORT)
-
-        h1 = self.addHost('h1', ip='10.0.0.1/24', mac='00:00:00:00:00:01')
-        h2 = self.addHost('h2', ip='10.0.0.2/24', mac='00:00:00:00:00:02')
-
-        self.addLink('h1', 's1', bw=5, delay='5ms', loss=1, use_htb=True)
-        self.addLink('h2', 's1', bw=5, delay='5ms', loss=1, use_htb=True)""        
 
 def main():
-        net = Mininet(topo=TutorialTopo(), controller=None, link=TCLink)
-        #net.staticArp() #Avoid ARP process
+    if not os.path.isfile(JSON_PATH):
+        print("ERROR: No se encontro %s" % JSON_PATH)
+        print("Compilar primero:")
+        print("  mkdir -p p4src/build")
+        print("  p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \\")
+        print("      --p4runtime-files p4src/build/p4info.txt p4src/sw_gita.p4")
+        sys.exit(1)
 
-        for h in net.hosts:
-            print("disable ipv6")
-            h.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
-            h.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
-            h.cmd("sysctl -w net.ipv6.conf.lo.disable_ipv6=1")
+    # No staticArp() — ARP se resuelve en el data plane
+    net = Mininet(topo=Exercise22Topo(), controller=None, link=TCLink)
 
-        net.start()
-        CLI(net)
-        net.stop()
-        print('#' * 80)
-        print('ATTENTION: Mininet was stopped! Perhaps accidentally?')
-        print('No worries, it will restart automatically in a few seconds...')
-        print('To access again the Mininet CLI, use `make mn-cli`')
-        print('To detach from the CLI (without stopping), press Ctrl-D')
-        print('To permanently quit Mininet, use `make stop`')
-        print('#' * 80)
+    # Deshabilitar IPv6 para evitar trafico innecesario
+    for h in net.hosts:
+        h.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
+        h.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
+        h.cmd("sysctl -w net.ipv6.conf.lo.disable_ipv6=1")
+
+    net.start()
+
+    print("\n" + "=" * 60)
+    print("Topologia activa.  En otra terminal ejecutar:")
+    print("  simple_switch_CLI --thrift-port 9090 < s1-commands.txt")
+    print("")
+    print("Para probar filtrado TCP:")
+    print("  1. Registrar sesion SSH (ver add_tcp_session.sh)")
+    print("  2. mininet> h2 /usr/sbin/sshd &")
+    print("  3. mininet> h1 ssh 10.0.0.2")
+    print("=" * 60 + "\n")
+
+    CLI(net)
+    net.stop()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description='Mininet topology script for 2x2 fabric with stratum_bmv2 and IPv4 hosts')
-    args = parser.parse_args()
     setLogLevel('info')
-
     main()
