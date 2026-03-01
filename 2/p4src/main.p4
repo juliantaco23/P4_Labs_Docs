@@ -440,4 +440,4 @@ V1Switch(
         EgressPipeImpl(),
         ComputeChecksumImpl(),
         DeparserImpl()
-) main
+) main;
