@@ -12,7 +12,7 @@ typedef bit<32>  ipv4_addr_t;
 const bit<16> ETHERTYPE_IPV4    = 0x0800;
 
 // Exercise 2 TO-DO: Define a symbolic constant for ARP ethertype
-const bit<16> ETHERTYPE_ARP    = <TODO>;
+const bit<16> ETHERTYPE_ARP    = 0x0806;
 
 /*
     Exercise 2 TO-DO: Define symbolic constants for different ARP fields.
