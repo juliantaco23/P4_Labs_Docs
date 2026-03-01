@@ -100,8 +100,7 @@ table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:0
 ```bash
 cd Exercise-1
 mkdir -p p4src/build
-p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \
-    --p4runtime-files p4src/build/p4info.txt p4src/main.p4
+p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json --p4runtime-files p4src/build/p4info.txt p4src/main.p4
 
 # Terminal 1: topología
 sudo python3 mininet/topo.py

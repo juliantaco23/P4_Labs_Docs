@@ -156,7 +156,7 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
         }
 
         action clone_to_cpu() {
-                clone3(CloneType.I2E, CPU_CLONE_SESSION_ID, {
+                clone_preserving_field_list(CloneType.I2E, CPU_CLONE_SESSION_ID, {
                         standard_metadata.ingress_port });
         }
 
