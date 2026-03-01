@@ -52,7 +52,7 @@ header ethernet_t {
   Operation Code, Source Hardware Address, Source Protocol Address,
   Target Hardware Address and Target Potocol Address.
   Refer to RFC 826 for the details on each of these fields
-*/
+
 
   ARP packet header per RFC 826.
   Field order and bit widths match the wire format exactly:
@@ -65,7 +65,7 @@ header ethernet_t {
     src_ip  : sender protocol addr (32b)
     dst_mac : target hardware addr (48b)
     dst_ip  : target protocol addr (32b) ← used as key in arp_exact table
-
+*/
 header arp_t {
     bit<16>      h_type;   // Hardware type
     bit<16>      p_type;   // Protocol type
