@@ -12,12 +12,9 @@ typedef bit<32>  ipv4_addr_t;
 const bit<16> ETHERTYPE_IPV4    = 0x0800;
 
 // Exercise 2 TO-DO: Define a symbolic constant for ARP ethertype
+// 0x0806 is the standard EtherType for ARP (Address Resolution Protocol)
 const bit<16> ETHERTYPE_ARP    = 0x0806;
 
-/*
-    Exercise 2 TO-DO: Define symbolic constants for different ARP fields.
-    Refer to RFC 826 for the sizes and reference values.
-*/
 /*
     ARP constants per RFC 826:
     HTYPE  = 1      → Ethernet hardware type
@@ -46,14 +43,6 @@ header ethernet_t {
 }
 
 /*
-  Exercise 2 TO-DO: Define a type for the header of an ARP packet.
-  Remember that an ARP packet contains the following fields:
-  Hardware Type, Prtocol Type, Hardware Length, Protocol Length,
-  Operation Code, Source Hardware Address, Source Protocol Address,
-  Target Hardware Address and Target Potocol Address.
-  Refer to RFC 826 for the details on each of these fields
-
-
   ARP packet header per RFC 826.
   Field order and bit widths match the wire format exactly:
     h_type  : hardware type (16b)  — 1 for Ethernet
@@ -110,10 +99,6 @@ header cpu_out_header_t {
 
 struct parsed_headers_t {
         ethernet_t ethernet;
-        /*
-                Exercise 2 TO-DO: Include the ARP header in the set of
-                headers recognized by this switch
-        */
         // ARP header added for Exercise 2 — parsed when ether_type == 0x0806
         arp_t arp;
         ipv4_t ipv4;
@@ -124,8 +109,8 @@ struct parsed_headers_t {
 
 struct local_metadata_t {
         @field_list(1)
-        bit<9>    port1;
-        bit<9>    port2;
+        bit<9>      port1;
+        bit<9>      port2;
         // Temporary storage for the ARP IP swap in arp_reply action
         ipv4_addr_t arp_tmp_ip;
 }
@@ -153,16 +138,6 @@ parser ParserImpl (packet_in packet,
                 transition parse_ethernet;
         }
 
-
-        /*
-                Exercise 2 TO-DO: Perform three changes to the parse_ethernet
-                state:
-                1. Create a transition selection based on the ether_type field
-                   of the ethernet header
-                2. For IPv4 packets, transition to the parse_ipv4 state
-                3. For ARP packets, trasition to the parse_arp state.
-                Note: Leave the parse_ipv4 state as default transition
-        */
 
         // parse_ethernet: after extracting the Ethernet header, branch on
         // EtherType so that IPv4 and ARP packets reach their own parse states.
@@ -335,15 +310,6 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
         }
 
 
-        /*
-                Exercise 2 TO-DO: Define the arp_exact table. This table
-                will be composed of a key to match the Target Protocol Address
-                field of the ARP header, in exact way. The actions for this
-                table will be the arp_reply, and the drop action. The drop
-                action will be the default action
-        */
-
-
         // arp_exact: matches the Target Protocol Address (TPA) of an ARP
         // Request exactly.  A successful match means the switch knows the MAC
         // for that IP and can generate the ARP Reply itself without involving
@@ -364,7 +330,6 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
 
 
 
-
         // --- APPLY -----------------------------------------------------------
 
 
@@ -375,24 +340,6 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
                         hdr.cpu_out.setInvalid();
                         exit;
                 }
-
-                //l2_exact_table.apply();
-
-        /*
-                Exercise 2 TO-DO: Modify the apply block according to the
-                following algorithm:
-                1. If the packet contains valid Ethernet and IPv4 headers,
-                   then apply the l2_exact_table which will forward packets
-                   according the destination MAC address.
-                2. Otherwise, if the packet contains an Ethernet frame,
-                   apply the arp_exact table in order to reply ARP requests.
-                Hint 1: You might want to comment out the non-conditioned
-                application of l2_exact_table.
-                Hint 2: For Step 2, you need to check the value of the field
-                containing the type of content of the frame.
-
-        */
-
 
                 // Algorithm (Exercise 2):
                 // Branch 1 \u2014 IPv4 unicast: both Ethernet and IPv4 headers must be
