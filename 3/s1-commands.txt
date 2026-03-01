@@ -1,8 +1,12 @@
 # ============================================================
-# Exercise-1 — L2 Forwarding (s1)
+# Exercise-3 — L2 + Timestamp Measurement (s1)
 # Instalar: simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 # ============================================================
-# Paquetes con destino MAC 01 → puerto 1 (h1)
+# L2 forwarding (tráfico normal, protocol != MySec 169)
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
-# Paquetes con destino MAC 02 → puerto 2 (h2)
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:02 => 2
+# Timestamp routing (tráfico MySec, protocol == 169)
+# MySec de h1 (ingress=1, dst=02) → enviar a s2 por puerto 2
+table_add IngressPipeImpl.TS_table IngressPipeImpl.TimeStamp_port 00:00:00:00:00:02 1 => 2
+# MySec de vuelta desde s2 (ingress=2, dst=01) → enviar a h1 por puerto 1
+table_add IngressPipeImpl.TS_table IngressPipeImpl.TimeStamp_port 00:00:00:00:00:01 2 => 1

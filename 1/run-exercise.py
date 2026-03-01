@@ -1,30 +1,6 @@
 #!/usr/bin/env python3
-"""
-Exercise-1 — L2 Forwarding Básico (sin ONOS)
-
-Topología:  h1 ── s1 ── h2
-
-Uso:
-  1. Compilar P4:
-       p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \
-           --p4runtime-files p4src/build/p4info.txt p4src/main.p4
-
-  2. Ejecutar topología:
-       sudo python3 run_exercise.py
-
-  3. En otra terminal, instalar reglas:
-       simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-
-  4. En la CLI de Mininet:
-       mininet> pingall
-"""
-
 import os, sys
-
-# Agregar el directorio padre al path para importar p4_mininet
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from p4_mininet import P4Switch, P4Host
-
 from mininet.net import Mininet
 from mininet.topo import Topo
 from mininet.log import setLogLevel
@@ -53,10 +29,6 @@ class Exercise1Topo(Topo):
 def main():
     if not os.path.isfile(JSON_PATH):
         print("ERROR: No se encontró %s" % JSON_PATH)
-        print("Compilar primero:")
-        print("  mkdir -p p4src/build")
-        print("  p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \\")
-        print("      --p4runtime-files p4src/build/p4info.txt p4src/main.p4")
         sys.exit(1)
 
     net = Mininet(topo=Exercise1Topo(), controller=None, link=TCLink)

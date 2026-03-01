@@ -1,8 +1,11 @@
 # ============================================================
-# Exercise-1 — L2 Forwarding (s1)
+# Exercise-2.1 — L2 Forwarding + ARP Responder (s1)
+# (Mismas reglas que Exercise-2; la diferencia está en sw_gita.p4)
 # Instalar: simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 # ============================================================
-# Paquetes con destino MAC 01 → puerto 1 (h1)
+# L2 forwarding
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
-# Paquetes con destino MAC 02 → puerto 2 (h2)
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:02 => 2
+# ARP replies
+table_add IngressPipeImpl.arp_exact IngressPipeImpl.arp_reply 10.0.0.1 => 00:00:00:00:00:01
+table_add IngressPipeImpl.arp_exact IngressPipeImpl.arp_reply 10.0.0.2 => 00:00:00:00:00:02

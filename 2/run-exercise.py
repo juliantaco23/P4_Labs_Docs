@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Exercise-1 — L2 Forwarding Básico (sin ONOS)
+Exercise-2 — ARP Responder estático (sin ONOS)
 
 Topología:  h1 ── s1 ── h2
 
@@ -16,13 +16,11 @@ Uso:
        simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 
   4. En la CLI de Mininet:
+       mininet> h1 arping -c 1 10.0.0.2
        mininet> pingall
 """
 
 import os, sys
-
-# Agregar el directorio padre al path para importar p4_mininet
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from p4_mininet import P4Switch, P4Host
 
 from mininet.net import Mininet
@@ -34,7 +32,7 @@ from mininet.link import TCLink
 JSON_PATH = os.path.join(os.path.dirname(__file__), 'p4src', 'build', 'bmv2.json')
 
 
-class Exercise1Topo(Topo):
+class Exercise2Topo(Topo):
     def build(self):
         s1 = self.addSwitch('s1',
                             cls=P4Switch,
@@ -59,14 +57,15 @@ def main():
         print("      --p4runtime-files p4src/build/p4info.txt p4src/main.p4")
         sys.exit(1)
 
-    net = Mininet(topo=Exercise1Topo(), controller=None, link=TCLink)
-    net.staticArp()
+    # No staticArp() — Exercise-2 maneja ARP en el data plane
+    net = Mininet(topo=Exercise2Topo(), controller=None, link=TCLink)
     net.start()
 
     print("\n" + "=" * 60)
     print("Topología activa.  En otra terminal ejecutar:")
     print("  simple_switch_CLI --thrift-port 9090 < s1-commands.txt")
-    print("Luego aquí:  pingall")
+    print("Luego aquí:  h1 arping -c 1 10.0.0.2")
+    print("             pingall")
     print("=" * 60 + "\n")
 
     CLI(net)

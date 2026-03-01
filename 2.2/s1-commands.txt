@@ -1,8 +1,22 @@
 # ============================================================
-# Exercise-1 — L2 Forwarding (s1)
+# Exercise-2.2 — L2 + ARP + TCP Session Filtering (s1)
 # Instalar: simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 # ============================================================
-# Paquetes con destino MAC 01 → puerto 1 (h1)
+# L2 forwarding
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
-# Paquetes con destino MAC 02 → puerto 2 (h2)
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:02 => 2
+# ARP replies
+table_add IngressPipeImpl.arp_exact IngressPipeImpl.arp_reply 10.0.0.1 => 00:00:00:00:00:01
+table_add IngressPipeImpl.arp_exact IngressPipeImpl.arp_reply 10.0.0.2 => 00:00:00:00:00:02
+# ------------------------------------------------------------------
+# TCP sessions: se agregan manualmente.
+# Sin un controlador dinámico (ONOS/TCPSessionManager), cada sesión
+# TCP permitida debe registrarse aquí (ambas direcciones).
+#
+# Ejemplo: permitir SSH (puerto 22) desde h1 hacia h2
+#   table_add IngressPipeImpl.tcp_sessions NoAction 10.0.0.1 <src_port> 10.0.0.2 22 =>
+#   table_add IngressPipeImpl.tcp_sessions NoAction 10.0.0.2 22 10.0.0.1 <src_port> =>
+#
+# Para agregar sesiones dinámicamente, usar el script add_tcp_session.sh:
+#   ./add_tcp_session.sh 10.0.0.1 <src_port> 10.0.0.2 22
+# ------------------------------------------------------------------
