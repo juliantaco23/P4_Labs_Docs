@@ -4,11 +4,6 @@ root@p4:/home/p4/P4_Labs_Docs/2# simple_switch_CLI --thrift-port 9090 < s1-comma
 Obtaining JSON from switch...
 Done
 Control utility for runtime P4 table manipulation
-RuntimeCmd: *** Unknown syntax: # ============================================================
-RuntimeCmd: *** Unknown syntax: # Exercise-2 — L2 Forwarding + ARP Responder (s1)
-RuntimeCmd: *** Unknown syntax: # Instalar: simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-RuntimeCmd: *** Unknown syntax: # ============================================================
-RuntimeCmd: *** Unknown syntax: # L2 forwarding
 RuntimeCmd: Adding entry to exact match table IngressPipeImpl.l2_exact_table
 match key:           EXACT-00:00:00:00:00:01
 action:              IngressPipeImpl.set_egress_port
@@ -19,7 +14,7 @@ match key:           EXACT-00:00:00:00:00:02
 action:              IngressPipeImpl.set_egress_port
 runtime data:        00:02
 Entry has been added with handle 1
-RuntimeCmd: *** Unknown syntax: # ARP replies: cuando alguien pregunta por la IP, se responde con la MAC correspondiente
 RuntimeCmd: Error: Invalid table name (IngressPipeImpl.arp_exact)
 RuntimeCmd: Error: Invalid table name (IngressPipeImpl.arp_exact)
 RuntimeCmd: 
+

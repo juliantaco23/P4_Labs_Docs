@@ -35,7 +35,6 @@ const bit<16> ARP_REQ = 1; //Operation 1 is request
 const bit<16> ARP_REPLY = 2; //Operation 2 is reply
 
 
-
 //------------------------------------------------------------------------------
 // HEADER DEFINITIONS
 //------------------------------------------------------------------------------
@@ -45,7 +44,6 @@ header ethernet_t {
     mac_addr_t  src_addr;
     bit<16>     ether_type;
 }
-
 
 header arp_t {
   bit<16>   h_type;
@@ -57,7 +55,7 @@ header arp_t {
   bit<32> src_ip;
   mac_addr_t dst_mac;
   bit<32> dst_ip;
-}
+  }
 
 
 header ipv4_t {
@@ -107,8 +105,8 @@ struct parsed_headers_t {
 }
 
 struct local_metadata_t {
-	@field_list(1)
-	port_num_t ingress_port;
+        @field_list(1)
+        port_num_t ingress_port;
 }
 
 
@@ -122,7 +120,7 @@ parser ParserImpl (packet_in packet,
                    inout standard_metadata_t standard_metadata)
 {
     state start {
-    	local_metadata.ingress_port = standard_metadata.ingress_port;
+        local_metadata.ingress_port = standard_metadata.ingress_port;
         transition select(standard_metadata.ingress_port) {
             CPU_PORT: parse_packet_out;
             default: parse_ethernet;
@@ -254,6 +252,7 @@ control IngressPipeImpl (inout parsed_headers_t    hdr,
 
       //send it back to the same port
       standard_metadata.egress_spec = standard_metadata.ingress_port;
+
     }
 
 
@@ -270,10 +269,16 @@ control IngressPipeImpl (inout parsed_headers_t    hdr,
     }
 
 
-
     apply {
 
         if (hdr.cpu_out.isValid()) {
+            // *** TODO EXERCISE 4
+            // Implement logic such that if this is a packet-out from the
+            // controller:
+            // 1. Set the packet egress port to that found in the cpu_out header
+            // 2. Remove (set invalid) the cpu_out header
+            // 3. Exit the pipeline here (no need to go through other tables
+
             standard_metadata.egress_spec = hdr.cpu_out.egress_port;
             hdr.cpu_out.setInvalid();
             exit;
