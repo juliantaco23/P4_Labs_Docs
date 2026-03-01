@@ -126,6 +126,8 @@ struct local_metadata_t {
         @field_list(1)
         bit<9>    port1;
         bit<9>    port2;
+        // Temporary storage for the ARP IP swap in arp_reply action
+        ipv4_addr_t arp_tmp_ip;
 }
 
 
