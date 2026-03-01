@@ -1,8 +1,2 @@
-# ============================================================
-# Exercise-1 — L2 Forwarding (s1)
-# Instalar: simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-# ============================================================
-# Paquetes con destino MAC 01 → puerto 1 (h1)
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
-# Paquetes con destino MAC 02 → puerto 2 (h2)
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:02 => 2

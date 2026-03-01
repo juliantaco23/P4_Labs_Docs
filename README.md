@@ -260,6 +260,21 @@ table_add IngressPipeImpl.tcp_sessions NoAction 10.0.0.1 12345 10.0.0.2 22 =>
 table_add IngressPipeImpl.tcp_sessions NoAction 10.0.0.2 22 10.0.0.1 12345 =>
 ```
 
+
+# ------------------------------------------------------------------
+# TCP sessions: se agregan manualmente.
+# Sin un controlador dinámico (ONOS/TCPSessionManager), cada sesión
+# TCP permitida debe registrarse aquí (ambas direcciones).
+#
+# Ejemplo: permitir SSH (puerto 22) desde h1 hacia h2
+#   table_add IngressPipeImpl.tcp_sessions NoAction 10.0.0.1 <src_port> 10.0.0.2 22 =>
+#   table_add IngressPipeImpl.tcp_sessions NoAction 10.0.0.2 22 10.0.0.1 <src_port> =>
+#
+# Para agregar sesiones dinámicamente, usar el script add_tcp_session.sh:
+#   ./add_tcp_session.sh 10.0.0.1 <src_port> 10.0.0.2 22
+# ------------------------------------------------------------------
+
+
 ### Verificación
 | Paso | Comando | Resultado esperado |
 |---|---|---|

@@ -1,9 +1,3 @@
-# ============================================================
-# Exercise-3 — L2 + Timestamp Measurement (s2)
-# Instalar: simple_switch_CLI --thrift-port 9091 < s2-commands.txt
-# ============================================================
-# L2 forwarding (tráfico normal)
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:02 => 2
-# Timestamp routing: MySec desde s1 (ingress=1, dst=02) → rebotar por puerto 1
 table_add IngressPipeImpl.TS_table IngressPipeImpl.TimeStamp_port 00:00:00:00:00:02 1 => 1

@@ -1,14 +1,4 @@
-# ============================================================
-# Exercise-4 — VLAN Tagging/Untagging (s2)
-# Instalar: simple_switch_CLI --thrift-port 9091 < s2-commands.txt
-# ============================================================
-# Paquetes desde access ports → agregar VLAN tag y enviar al trunk (port 3)
-#  h3 (MAC 03, ingress port 1) → VLAN 10
 table_add IngressPipeImpl.set_vlan_tag IngressPipeImpl.add_vlan_tag 00:00:00:00:00:03 => 3
-#  h4 (MAC 04, ingress port 2) → VLAN 20
 table_add IngressPipeImpl.set_vlan_tag IngressPipeImpl.add_vlan_tag 00:00:00:00:00:04 => 3
-# Paquetes desde trunk → extraer VLAN tag y enviar al host correcto
-#  dst MAC 03, VLAN 10 → port 1 (h3)
 table_add IngressPipeImpl.extract_vlan_tag IngressPipeImpl.set_egress_port 00:00:00:00:00:03 10 => 1
-#  dst MAC 04, VLAN 20 → port 2 (h4)
 table_add IngressPipeImpl.extract_vlan_tag IngressPipeImpl.set_egress_port 00:00:00:00:00:04 20 => 2
