@@ -1,4 +1,5 @@
-root@p4:/home/p4/P4_Labs_Docs/2# mkdir -p p4src/buildroot@p4:/home/p4/P4_Labs_Docs/2# p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json     --p4runtime-files p4src/build/p4info.txt p4src/main.p4
+root@p4:/home/p4/P4_Labs_Docs/2# mkdir -p p4src/build
+root@p4:/home/p4/P4_Labs_Docs/2# p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json --p4runtime-files p4src/build/p4info.txt p4src/main.p4
 [--Wwarn=deprecated] warning: .txt format is being deprecated; use .txtpb instead
 root@p4:/home/p4/P4_Labs_Docs/2# simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 Obtaining JSON from switch...
@@ -14,7 +15,15 @@ match key:           EXACT-00:00:00:00:00:02
 action:              IngressPipeImpl.set_egress_port
 runtime data:        00:02
 Entry has been added with handle 1
-RuntimeCmd: Error: Invalid table name (IngressPipeImpl.arp_exact)
-RuntimeCmd: Error: Invalid table name (IngressPipeImpl.arp_exact)
+RuntimeCmd: Adding entry to exact match table IngressPipeImpl.arp_exact
+match key:           EXACT-0a:00:00:01
+action:              IngressPipeImpl.arp_reply
+runtime data:        00:00:00:00:00:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to exact match table IngressPipeImpl.arp_exact
+match key:           EXACT-0a:00:00:02
+action:              IngressPipeImpl.arp_reply
+runtime data:        00:00:00:00:00:02
+Entry has been added with handle 1
 RuntimeCmd: 
-
+root@p4:/home/p4/P4_Labs_Docs/2# 
