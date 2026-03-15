@@ -70,24 +70,13 @@ def main():
 
     # No staticArp() — ARP se resuelve en el data plane
     net = Mininet(topo=Exercise22Topo(), controller=None, link=TCLink)
+    net.start()
 
-    # Deshabilitar IPv6 para evitar trafico innecesario
+    # Deshabilitar IPv6 para evitar trafico innecesario (debe ir post-start)
     for h in net.hosts:
         h.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
         h.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
         h.cmd("sysctl -w net.ipv6.conf.lo.disable_ipv6=1")
-
-    net.start()
-
-    print("\n" + "=" * 60)
-    print("Topologia activa.  En otra terminal ejecutar:")
-    print("  simple_switch_CLI --thrift-port 9090 < s1-commands.txt")
-    print("")
-    print("Para probar filtrado TCP:")
-    print("  1. Registrar sesion SSH (ver add_tcp_session.sh)")
-    print("  2. mininet> h2 /usr/sbin/sshd &")
-    print("  3. mininet> h1 ssh 10.0.0.2")
-    print("=" * 60 + "\n")
 
     CLI(net)
     net.stop()

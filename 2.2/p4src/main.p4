@@ -435,9 +435,10 @@ control IngressPipeImpl (inout parsed_headers_t    hdr,
         }
         actions = {
             NoAction;
+            @defaultonly drop;
         }
         size = 1024;
-        default_action = NoAction;
+        const default_action = drop;
     }
 
 

@@ -72,14 +72,6 @@ def main():
     # No staticArp() — Exercise-2 maneja ARP en el data plane
     net = Mininet(topo=Exercise2Topo(), controller=None, link=TCLink)
     net.start()
-
-    print("\n" + "=" * 60)
-    print("Topologia activa.  En otra terminal ejecutar:")
-    print("  simple_switch_CLI --thrift-port 9090 < s1-commands.txt")
-    print("Luego aqui:  h1 arping -c 1 10.0.0.2")
-    print("             pingall")
-    print("=" * 60 + "\n")
-
     CLI(net)
     net.stop()
 

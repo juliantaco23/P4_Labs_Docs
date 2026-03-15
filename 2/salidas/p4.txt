@@ -26,4 +26,3 @@ action:              IngressPipeImpl.arp_reply
 runtime data:        00:00:00:00:00:02
 Entry has been added with handle 1
 RuntimeCmd: 
-root@p4:/home/p4/P4_Labs_Docs/2# 
