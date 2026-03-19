@@ -13,17 +13,34 @@ h1 h2
 *** Starting 1 switches
 s1 ⚡ Starting s1 @ thrift-port 9090
 
-
-============================================================
-Topologia activa.  En otra terminal ejecutar:
-  simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-Luego aqui:  pingall
-============================================================
-
 *** Starting CLI:
 mininet> pingall
 *** Ping: testing ping reachability
 h1 -> h2 
 h2 -> h1 
 *** Results: 0% dropped (2/2 received)
-mininet> 
+mininet> xterm h1 h2 h2
+
+h2.1 > tcpdump -i h2-eth0 tcp -n
+h2.2 > nc -lk -p 9999
+
+
+Probamos un paquete con puerto equivocado para comprobar que la conexion se cierre
+h1 >  nc -p 6000 -w 2 10.0.0.2 9999
+La conexion se cierra en h1
+
+Probamos con el puerto 5000 mapeado en s1-commands
+h1 >  nc -p 5000 10.0.0.2 9999
+hola
+
+h2.2 > nc -lk -p 9999
+hola
+
+h2.1 > tcpdump -i h2-eth0 tcp -n
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on h2-eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+22:28:07.816341 IP 10.0.0.1.5000 > 10.0.0.2.9999: Flags [S], seq 2522455258, win 43440, options [mss 1460,sackOK,TS val 3679357341 ecr 0,nop,wscale 9], length 0
+22:28:07.836083 IP 10.0.0.2.9999 > 10.0.0.1.5000: Flags [S.], seq 1586301920, ack 2522455259, win 43440, options [mss 1460,sackOK,TS val 360262583 ecr 3679357341,nop,wscale 9], length 0
+22:28:07.859952 IP 10.0.0.1.5000 > 10.0.0.2.9999: Flags [.], ack 1, win 83, options [nop,nop,TS val 3679362583 ecr 360262583], length 0
+22:28:12.815202 IP 10.0.0.1.5000 > 10.0.0.2.9999: Flags [P.], seq 1:6, ack 1, win 83, options [nop,nop,TS val 3679362583 ecr 360262583], length 5
+22:28:12.820708 IP 10.0.0.2.9999 > 10.0.0.1.5000: Flags [.], ack 6, win 85, options [nop,nop,TS val 360267582 ecr 3679362340], length 0
