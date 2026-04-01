@@ -1,4 +1,0 @@
-table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
-table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:02 => 2
-table_add IngressPipeImpl.arp_exact IngressPipeImpl.arp_reply 10.0.0.1 => 00:00:00:00:00:01
-table_add IngressPipeImpl.arp_exact IngressPipeImpl.arp_reply 10.0.0.2 => 00:00:00:00:00:02
