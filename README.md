@@ -81,8 +81,7 @@ Exercise-N/
 ## Referencia rápida: `simple_switch_CLI`
 
 ```bash
-# Conectar al switch s1 (thrift port 9090)
-simple_switch_CLI --thrift-port 9090
+# Conectar al switch s1 (thrift port 9090)simple_switch_CLI --thrift-port 9090
 
 # Comandos útiles dentro de la CLI:
 table_dump <table_name>              # Ver entradas de una tabla
