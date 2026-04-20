@@ -83,8 +83,8 @@ class P4Switch(Switch):
 
         # Map Mininet interfaces to BMv2 port numbers
         for port, intf in self.intfs.items():
-            if not intf.IP() and port == 0:
-                continue  # skip loopback
+            if port == 0:
+                continue  # skip loopback (lo always has IP, original check was wrong)
             args.extend(['-i', '%d@%s' % (port, intf.name)])
 
         args.extend(['--thrift-port', str(self.thrift_port)])
