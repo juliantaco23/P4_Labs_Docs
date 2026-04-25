@@ -101,8 +101,12 @@ class P4Switch(Switch):
 
         logfile = open(self.log_file, 'w')
         info("⚡ Starting %s @ thrift-port %d\n" % (self.name, self.thrift_port))
-        self.bmv2popen = self.popen(args, stdout=logfile, stderr=logfile)
+        info("   cmd: %s\n" % ' '.join(str(a) for a in args))
+        self.bmv2popen = subprocess.Popen(args, stdout=logfile, stderr=logfile)
         time.sleep(1)  # Give BMv2 time to initialize
+        if self.bmv2popen.poll() is not None:
+            error("*** ERROR: %s exited immediately (code %d). Check: %s\n"
+                  % (self.name, self.bmv2popen.returncode, self.log_file))
 
     def stop(self, deleteIntfs=True):
         """Stop simple_switch."""

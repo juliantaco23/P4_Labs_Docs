@@ -20,7 +20,6 @@ Prerequisites (bare-metal Ubuntu 20.04):
     #   https://github.com/p4lang/p4c
 """
 
-import sys
 import os
 import time
 import subprocess
@@ -75,9 +74,6 @@ class P4Switch(Switch):
 
     def start(self, controllers):
         """Start simple_switch subprocess."""
-        print(">>> start() para: %s | json_path=%s" % (self.name, self.json_path), flush=True)
-        print(">>> json existe: %s" % (os.path.isfile(self.json_path) if self.json_path else "N/A"), flush=True)
-    
         if self.json_path is None or not os.path.isfile(self.json_path):
             error("*** ERROR: BMv2 JSON not found: %s\n" % self.json_path)
             error("    Run:  p4c-bm2-ss -o <output.json> <program.p4>\n")
@@ -105,8 +101,12 @@ class P4Switch(Switch):
 
         logfile = open(self.log_file, 'w')
         info("⚡ Starting %s @ thrift-port %d\n" % (self.name, self.thrift_port))
-        self.bmv2popen = self.popen(args, stdout=logfile, stderr=logfile)
+        info("   cmd: %s\n" % ' '.join(str(a) for a in args))
+        self.bmv2popen = subprocess.Popen(args, stdout=logfile, stderr=logfile)
         time.sleep(1)  # Give BMv2 time to initialize
+        if self.bmv2popen.poll() is not None:
+            error("*** ERROR: %s exited immediately (code %d). Check: %s\n"
+                  % (self.name, self.bmv2popen.returncode, self.log_file))
 
     def stop(self, deleteIntfs=True):
         """Stop simple_switch."""
