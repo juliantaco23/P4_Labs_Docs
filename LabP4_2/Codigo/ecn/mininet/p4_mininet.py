@@ -146,6 +146,7 @@ class P4Host(Host):
 
     def config(self, **params):
         r = super().config(**params)
+        self.defaultIntf().rename("eth0")  # scripts and configure_hosts() expect eth0
         for off in ["rx", "tx", "sg"]:
-            self.cmd("ethtool --offload %s %s off" % (self.defaultIntf(), off))
+            self.cmd("ethtool --offload eth0 %s off" % off)
         return r
