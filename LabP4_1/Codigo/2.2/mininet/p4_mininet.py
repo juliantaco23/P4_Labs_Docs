@@ -68,6 +68,11 @@ class P4Switch(Switch):
             self.thrift_port = P4Switch.next_thrift_port
             P4Switch.next_thrift_port += 1
 
+        # device_id determines the nanomsg IPC socket path:
+        # /tmp/bmv2-{device_id}-notifications.ipc
+        # Must be unique per switch to avoid "Address already in use".
+        self.device_id = self.thrift_port - 9090
+
         self.log_console = log_console
         self.log_file = log_file or '/tmp/%s.log' % self.name
         self.pcap_dir = pcap_dir
@@ -88,6 +93,7 @@ class P4Switch(Switch):
             args.extend(['-i', '%d@%s' % (port, intf.name)])
 
         args.extend(['--thrift-port', str(self.thrift_port)])
+        args.extend(['--device-id', str(self.device_id)])
 
         if self.pcap_dir:
             if not os.path.isdir(self.pcap_dir):
