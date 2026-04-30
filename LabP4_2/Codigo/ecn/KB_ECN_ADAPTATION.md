@@ -226,6 +226,233 @@ La diferencia entre `simple_switch` y `simple_switch_grpc` es solo el mecanismo 
 
 ---
 
+---
+
+## Bugs Encontrados y Corregidos en p4_mininet.py — HISTORIAL COMPLETO
+
+Estos bugs fueron descubiertos durante la validación funcional de ECN (Abril 2026) y corregidos en **todos** los `p4_mininet.py` del repositorio (LabP4_1/Codigo/1, 2, 2.2 · LabP4_2/Codigo/ecn, VLAN · LabP4_3/Codigo/mri, mysec).
+
+---
+
+### Bug 1 — IPC socket compartido entre switches (CRÍTICO)
+
+**Síntoma**: Solo el primer switch (s1) arrancaba correctamente. El segundo switch (s2) fallaba silenciosamente: no aparecía en `ps aux`, no existía `/tmp/s2.log`, y `simple_switch_CLI --thrift-port 9091` retornaba `Could not connect`.
+
+**Causa raíz**: BMv2 (`simple_switch`) crea un socket nanomsg de notificaciones en `/tmp/bmv2-{device_id}-notifications.ipc`. El `device_id` por defecto es **0** para todos los switches. Entonces s1 bindea `/tmp/bmv2-0-notifications.ipc` y s2 intenta bindear el **mismo archivo** → `Address already in use` → s2 termina con código 1 inmediatamente.
+
+El log de s2 mostraba:
+```
+Nanomsg returned a exception when trying to bind to address 'ipc:///tmp/bmv2-0-notifications.ipc'.
+The exception is: Address already in use
+```
+
+**Solución aplicada**: Pasar `--device-id` único a cada switch, derivado del thrift_port:
+```python
+# En __init__():
+self.device_id = self.thrift_port - 9090  # s1→0, s2→1, s3→2
+
+# En start(), al construir args[]:
+args.extend(['--thrift-port', str(self.thrift_port)])
+args.extend(['--device-id', str(self.device_id)])
+```
+
+Esto genera sockets únicos:
+- s1 (thrift 9090): `/tmp/bmv2-0-notifications.ipc`
+- s2 (thrift 9091): `/tmp/bmv2-1-notifications.ipc`
+- s3 (thrift 9092): `/tmp/bmv2-2-notifications.ipc`
+
+---
+
+### Bug 2 — self.popen() vs subprocess.Popen() (CRÍTICO)
+
+**Síntoma**: Incluso después de corregir el Bug 1, s2 seguía fallando con código de salida 1.
+
+**Causa raíz**: `self.popen()` es un método de `Mininet.Node` que internamente envuelve el comando con `mnexec -da <pid>` (`-d` = daemonize, `-a` = attach al namespace de red del nodo). En ciertos pares de versiones Mininet+BMv2, el proceso daemonizado del segundo switch se desconecta del namespace antes de que BMv2 pueda inicializarse, causando un fallo silencioso.
+
+**Solución aplicada**: Reemplazar `self.popen()` por `subprocess.Popen()` directamente:
+```python
+# ANTES (problemático):
+self.bmv2popen = self.popen(args, stdout=logfile, stderr=logfile)
+
+# DESPUÉS (correcto):
+self.bmv2popen = subprocess.Popen(args, stdout=logfile, stderr=logfile)
+```
+`subprocess.Popen` lanza `simple_switch` como hijo directo del proceso Python, sin la capa `mnexec`. BMv2 funciona correctamente así porque cada switch ya opera en su propio namespace de red (Mininet lo configura antes de llamar a `start()`).
+
+Se agregó también una verificación inmediata de fallo:
+```python
+time.sleep(1)
+if self.bmv2popen.poll() is not None:
+    error("*** ERROR: %s exited immediately (code %d). Check: %s\n"
+          % (self.name, self.bmv2popen.returncode, self.log_file))
+```
+
+---
+
+### Bug 3 — Interfaz de loopback incluida en args de BMv2
+
+**Síntoma** (descubierto analíticamente, potencial): La condición original para saltar el loopback era:
+```python
+if not intf.IP() and port == 0:
+    continue
+```
+`lo` tiene IP `127.0.0.1`, por lo que `not intf.IP()` es `False`. La condición nunca se ejecutaba y BMv2 recibía `-i 0@lo` junto con las interfaces reales.
+
+**Solución aplicada**:
+```python
+if port == 0:
+    continue  # port 0 es siempre loopback en Mininet
+```
+
+---
+
+### Bug 4 — Interfaces de host nombradas hX-eth0 en lugar de eth0
+
+**Síntoma**: `receive.py` fallaba con `OSError: eth0: No such device`. `configure_hosts()` en los ejercicios L3 ejecutaba `route add ... dev eth0` y `arp -i eth0 ...` sobre una interfaz inexistente → rutas nunca configuradas → pingall 100% drop.
+
+**Causa raíz**: Mininet nombra las interfaces de host como `h1-eth0`, `h2-eth0`, etc. por defecto. El código original de p4lang/tutorials renombraba la interfaz principal a `eth0` en `P4Host`. Nuestra implementación inicial de `P4Host` omitió ese paso.
+
+**Solución aplicada**: Agregar `rename("eth0")` en `P4Host.config()`:
+```python
+class P4Host(Host):
+    def config(self, **params):
+        r = super().config(**params)
+        self.defaultIntf().rename("eth0")  # send.py, receive.py y configure_hosts() esperan eth0
+        for off in ["rx", "tx", "sg"]:
+            self.cmd("ethtool --offload eth0 %s off" % off)
+        return r
+```
+El rename también es necesario para deshabilitar TX/RX offload correctamente (antes se usaba `self.defaultIntf()` como nombre, que devolvía el objeto, no el string del nombre actualizado).
+
+---
+
+### Secuencia de diagnóstico para arranque de switches
+
+Si un switch no arranca, seguir este orden:
+
+```bash
+# 1. Verificar cuántos procesos simple_switch hay
+ps aux | grep simple_switch
+
+# 2. Verificar qué puertos Thrift están activos
+ss -tlnp | grep 909
+
+# 3. Ver log del switch fallido
+cat /tmp/s2.log    # o s3.log
+
+# 4. Limpiar y reiniciar
+sudo pkill -9 simple_switch
+sudo mn --clean
+# Eliminar sockets IPC residuales
+rm -f /tmp/bmv2-*-notifications.ipc
+```
+
+---
+
+### Validación ECN — Secuencia Corregida y Explicada
+
+```bash
+# Desde la carpeta del ejercicio:
+cd /home/p4/P4_Labs_Docs/LabP4_2/Codigo/ecn
+
+# Paso 1 — Compilar
+mkdir -p p4src/build
+p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/ecn.p4
+chmod +x send.py receive.py
+
+# Paso 2 — Levantar topología
+sudo pkill -9 simple_switch ; sudo mn --clean
+sudo python3 mininet/topo.py
+```
+
+En otra terminal (mientras Mininet CLI espera):
+```bash
+# Paso 3 — Instalar reglas (una por switch, no juntas)
+simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+```
+
+En Mininet CLI:
+```
+# Paso 4 — Verificar conectividad L3 entre subredes
+# NOTA: h1↔h11 y h2↔h22 SIEMPRE fallan (mismo switch, sin ARP proxy)
+# Solo importan los pares CRUZADOS:
+mininet> h1 ping 10.0.2.2 -c3    # h1 → h2
+mininet> h11 ping 10.0.2.22 -c3  # h11 → h22
+
+# Paso 5 — Abrir xterms para h2 y h22
+mininet> xterm h2 h22
+```
+
+En **xterm h22** (servidor iperf — generará congestión en el enlace bottleneck):
+```bash
+iperf -s -p 5001 -u
+```
+
+En **xterm h2** (sniff de paquetes — observará el cambio de TOS):
+```bash
+python3 /home/p4/P4_Labs_Docs/LabP4_2/Codigo/ecn/receive.py
+```
+
+En **Mininet CLI** — IMPORTANTE: dos comandos separados, no con `&` en la misma línea:
+```
+# Paso 6 — Generar congestión (h11 → h22 a 2Mbps, enlace es 0.5Mbps → cola supera ECN_THRESHOLD=10)
+# Nota: -b 600k NO es suficiente (la cola no alcanza depth=10, ECN nunca marca → todos tos=0x1).
+# Con 2Mbps la cola sí supera el threshold → se observan paquetes con tos=0x3. Algunos paquetes
+# pueden descartarse cuando el buffer se llena completamente (esperado, no es error).
+mininet> h11 iperf -c 10.0.2.22 -p 5001 -t 30 -u -b 2M &
+
+# Paso 7 — Enviar tráfico ECN-observable (IMPORTANTE: usar IP directa, no nombre de host)
+mininet> h1 python3 /home/p4/P4_Labs_Docs/LabP4_2/Codigo/ecn/send.py 10.0.2.2 "P4 is cool" 20
+```
+
+**Por qué NO usar `&` en la misma línea de Mininet CLI**: Mininet reemplaza nombres de host (`h1`, `h22`) por sus IPs antes de enviar al shell. Con `h11 iperf ... & h1 ./send.py ...`, el shell de h11 recibe `iperf ... & 10.0.1.1 ./send.py ...` y trata `10.0.1.1` como un comando → `command not found`.
+
+**Por qué usar IP directa en send.py**: El argumento `10.0.2.2` es para `socket.gethostbyname()` dentro de send.py. Si se usa el nombre `h2`, Python intentaría resolverlo via DNS en el namespace del host → falla. La IP directa siempre funciona.
+
+**Salida esperada en receive.py**:
+
+El orden de tos=0x1 y tos=0x3 depende del momento en que la cola se satura:
+
+```
+# Escenario más frecuente (iperf satura el enlace antes del primer paquete de send.py):
+got a packet  →  tos=0x3  (ECN=11 — cola ya congestionada al llegar el primer paquete)
+got a packet  →  tos=0x3
+...
+got a packet  →  tos=0x1  (ECN=01 — iperf terminó, cola se vació)
+got a packet  →  tos=0x1
+```
+
+Esto es correcto. Con 2Mbps en un enlace de 0.5Mbps, la cola se llena en ≈75ms — antes de que llegue el primer paquete de send.py (que arranca ~1s después del iperf). El orden `0x1 → 0x3 → 0x1` solo ocurre si send.py arranca mucho antes que iperf.
+
+**Paquetes recibidos < 20 (pérdida esperada con 2Mbps, mejorable con 600k)**:
+send.py envía 20 paquetes (confirmado por 20× "Sent 1 packets." en la salida). Los faltantes son **descartados en la cola de BMv2**, no marcados. Cuando la cola supera su capacidad máxima, los nuevos paquetes se descartan antes de entrar al pipeline de egress — nunca llegan a la lógica ECN. Esto demuestra que ECN solo puede marcar paquetes mientras el buffer tenga espacio; una vez lleno, la red vuelve a descartar igual que sin ECN.
+
+Para una demo que evite drops, se podría usar `iperf -b 600k`, pero **esto no funciona**: con 600k el enlace de 500kbps se satura apenas un 20% → la cola nunca alcanza `ECN_THRESHOLD = 10` → ECN nunca marca → todos los paquetes llegan con `tos=0x1` → no hay nada que observar. La congestión con 2Mbps es necesaria para disparar el mecanismo ECN.
+
+**Nota**: Aumentar el tamaño de la cola en BMv2 (`set_queue_depth 500` en la CLI) NO es la solución correcta — simula bufferbloat, que es exactamente el problema que ECN pretende resolver.
+
+**Conclusión**: La configuración con 2Mbps es la correcta. Los descartes son un efecto secundario aceptable — lo pedagógicamente importante es observar el marcado `tos=0x3`, lo cual sí ocurre con 2Mbps.
+
+**Sobre iperf en h22 — flag `-u` OBLIGATORIO**:
+El servidor iperf debe ejecutarse con `-u` para recibir tráfico UDP. Sin `-u`, escucha TCP y h11's iperf UDP nunca es recibido (h22 muestra solo "Server listening" sin estadísticas). La congestión igual ocurre (h11 transmite UDP independientemente), pero el servidor no muestra estadísticas. Comando correcto:
+```bash
+# En xterm h22 — SIEMPRE con -u:
+iperf -s -p 5001 -u
+```
+
+**Resultado de pingall validado**:
+```
+h1 -> h2 X h22      ← h11 falla (mismo switch, misma subred) — CORRECTO
+h2 -> h1 h11 X      ← h22 falla (mismo switch, misma subred) — CORRECTO  
+h11 -> X h2 h22     ← h1 falla (mismo switch, misma subred) — CORRECTO
+h22 -> h1 X h11     ← h2 falla (mismo switch, misma subred) — CORRECTO
+*** Results: 33% dropped (8/12 received)  ← CORRECTO
+```
+Los 4 pares que fallan son exactamente los pares dentro del mismo switch y misma subred. El switch solo hace L3 y no maneja ARP broadcasts. Los 8 pares cross-switch funcionan al 100%.
+
+---
+
 ## Notas para el LaTeX (LabP4_2.tex)
 
 - Este es el **ejercicio guiado** de LabP4_2

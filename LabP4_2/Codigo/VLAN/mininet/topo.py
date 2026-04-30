@@ -84,8 +84,8 @@ def main():
         sys.exit(1)
 
     net = Mininet(topo=Exercise4Topo(), controller=None, link=TCLink)
-    net.staticArp()
     net.start()
+    net.staticArp()  # must be after net.start() so host namespaces are up
 
     print("\n" + "=" * 60)
     print("Topologia VLAN activa (2 switches).  En otra terminal:")

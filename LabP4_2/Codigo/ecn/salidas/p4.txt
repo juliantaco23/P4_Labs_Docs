@@ -1,0 +1,41 @@
+root@p4:/home/p4/P4_Labs_Docs/LabP4_2/Codigo/ecn# simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to lpm match table MyIngress.ipv4_lpm
+match key:           LPM-0a:00:01:01/32
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:01  00:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to lpm match table MyIngress.ipv4_lpm
+match key:           LPM-0a:00:01:0b/32
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:11  00:02
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to lpm match table MyIngress.ipv4_lpm
+match key:           LPM-0a:00:02:00/24
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:02:00  00:03
+Entry has been added with handle 2
+RuntimeCmd: 
+
+root@p4:/home/p4/P4_Labs_Docs/LabP4_2/Codigo/ecn# simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to lpm match table MyIngress.ipv4_lpm
+match key:           LPM-0a:00:02:02/32
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:02:02  00:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to lpm match table MyIngress.ipv4_lpm
+match key:           LPM-0a:00:02:16/32
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:02:22  00:02
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to lpm match table MyIngress.ipv4_lpm
+match key:           LPM-0a:00:01:00/24
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:00  00:03
+Entry has been added with handle 2
+RuntimeCmd: 
