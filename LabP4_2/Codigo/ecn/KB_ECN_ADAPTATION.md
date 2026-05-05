@@ -441,6 +441,22 @@ El servidor iperf debe ejecutarse con `-u` para recibir tráfico UDP. Sin `-u`, 
 iperf -s -p 5001 -u
 ```
 
+**Sobre "read failed: Connection refused" al final de la salida h22**:
+Al terminar el test, iperf intenta enviar sus estadísticas finales al cliente (h11). Si h11 ya cerró su socket UDP, el kernel de h22 recibe un ICMP "Port Unreachable" y lo reporta como `read failed: Connection refused`. Esto es comportamiento normal de iperf UDP — no indica ningún error en la implementación P4 ni en la topología. Las estadísticas mostradas justo antes (`Bandwidth`, `Jitter`, `Lost/Total`) son completas y válidas.
+
+**Referencia rápida de valores TOS en capturas**:
+
+El campo `tos` que muestra Scapy/tcpdump es el byte completo de 8 bits (`diffserv[6] + ecn[2]`).
+
+| `tos` en captura | Significado | Condición |
+|---|---|---|
+| `0x1` (ECN=01) | Paquete ECN-Capable (ECT(1)) | Emitido por send.py, cola ≤ umbral |
+| `0x2` (ECN=10) | Paquete ECN-Capable (ECT(0)) | Alternativa, no usada en este ejercicio |
+| `0x3` (ECN=11) | Congestion Experienced (CE) | Switch marcó: cola > ECN_THRESHOLD=10 |
+| `0x0` (ECN=00) | No ECN-Capable | Tráfico iperf normal (no observable en h2) |
+
+El switch **nunca** cambia tos de `0x0 → 0x3`: la condición en egress es `if (ecn == 1 || ecn == 2)`, así que solo marca paquetes que ya eran ECN-Capable.
+
 **Resultado de pingall validado**:
 ```
 h1 -> h2 X h22      ← h11 falla (mismo switch, misma subred) — CORRECTO

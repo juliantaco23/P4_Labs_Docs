@@ -21,6 +21,16 @@ These numbers must be unique and fall within the range of 000 to FFF.
 const bit<12> VLAN_10 = 0x00a;  //VLAN ID 10 in hexadecimal
 const bit<12> VLAN_20 = 0x014; //VLAN ID 20 in hexadecimal
 
+/* Exercise 4 TO-DO — DSCP Marking
+Define two DSCP values (6-bit constants, range 0–63) to assign a different 
+traffic class to each VLAN. These values will be written into the IPv4 DSCP 
+field so that downstream devices can apply QoS policies per VLAN.
+  - HINT: Use values that are easy to recognize in captures, e.g., 10 for
+    VLAN 10 (DSCP AF11) and 20 for VLAN 20 (DSCP AF21).
+*/
+const bit<6> DSCP_VLAN_10 = 10;  // AF11 — traffic class for VLAN 10
+const bit<6> DSCP_VLAN_20 = 20;  // AF21 — traffic class for VLAN 20
+
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //+++++++++++++++++++++++++++ HEADER DEFINITIONS ++++++++++++++++++++++++++
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -215,7 +225,24 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
                 //Sets the ethertype from the ethernet frame to the ethertype filed inside the vlan header
                 hdr.vlan_802_1q.ether_type = hdr.ethernet.ether_type; 
                 hdr.ethernet.ether_type = ETHERTYPE_VLAN; //Sets the ethernet ethertype with the vlan TPID 0x8100
-                
+
+                /* Exercise 4 TO-DO — DSCP Marking
+                After assigning the VLAN ID, mark the IPv4 DSCP field to 
+                reflect the traffic class of each VLAN. Use the constants 
+                DSCP_VLAN_10 and DSCP_VLAN_20 defined at the top of this file.
+                  - HINT: Use an if/else block with the same ingress_port 
+                    condition used above to assign the VLAN ID.
+                  - NOTE: Only mark DSCP if the IPv4 header is valid 
+                    (hdr.ipv4.isValid()), since non-IP frames won't have it.
+                */
+                if (hdr.ipv4.isValid()) {
+                        if (standard_metadata.ingress_port == 1) {
+                                hdr.ipv4.dscp = DSCP_VLAN_10;
+                        } else if (standard_metadata.ingress_port == 2) {
+                                hdr.ipv4.dscp = DSCP_VLAN_20;
+                        }
+                }
+
                 standard_metadata.egress_spec = port_num; //egress port
         }
 
@@ -294,7 +321,35 @@ control EgressPipeImpl (inout parsed_headers_t hdr,
 
 control ComputeChecksumImpl(inout parsed_headers_t hdr,
                             inout local_metadata_t local_metadata) {
-        apply { /* EMPTY */ }
+        /* Exercise 4 TO-DO — IPv4 Checksum Recalculation
+        Whenever a field inside the IPv4 header is modified (e.g., dscp),
+        the IP header checksum must be recalculated, otherwise receiving
+        hosts will discard the packet as corrupt.
+        Add an update_checksum call covering all IPv4 header fields and
+        storing the result in hdr.ipv4.hdr_checksum.
+          - HINT: Use HashAlgorithm.csum16 and guard the call with 
+            hdr.ipv4.isValid() as the first argument.
+          - HINT: Look at how the ECN exercise implements this in ecn.p4.
+        */
+        apply {
+                update_checksum(
+                        hdr.ipv4.isValid(),
+                        { hdr.ipv4.version,
+                          hdr.ipv4.ihl,
+                          hdr.ipv4.dscp,
+                          hdr.ipv4.ecn,
+                          hdr.ipv4.total_len,
+                          hdr.ipv4.identification,
+                          hdr.ipv4.flags,
+                          hdr.ipv4.frag_offset,
+                          hdr.ipv4.ttl,
+                          hdr.ipv4.protocol,
+                          hdr.ipv4.src_addr,
+                          hdr.ipv4.dst_addr },
+                        hdr.ipv4.hdr_checksum,
+                        HashAlgorithm.csum16
+                );
+        }
 }
 
 
