@@ -1,0 +1,25 @@
+root@p4:/home/p4/P4_Labs_Docs/1# mkdir -p p4src/build
+root@p4:/home/p4/P4_Labs_Docs/1# p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json \
+>     --p4runtime-files p4src/build/p4info.txt p4src/main.p4
+[--Wwarn=deprecated] warning: .txt format is being deprecated; use .txtpb instead
+root@p4:/home/p4/P4_Labs_Docs/1# simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: *** Unknown syntax: # ============================================================
+RuntimeCmd: *** Unknown syntax: # Exercise-1 — L2 Forwarding (s1)
+RuntimeCmd: *** Unknown syntax: # Instalar: simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+RuntimeCmd: *** Unknown syntax: # ============================================================
+RuntimeCmd: *** Unknown syntax: # Paquetes con destino MAC 01 → puerto 1 (h1)
+RuntimeCmd: Adding entry to exact match table IngressPipeImpl.l2_exact_table
+match key:           EXACT-00:00:00:00:00:01
+action:              IngressPipeImpl.set_egress_port
+runtime data:        00:01
+Entry has been added with handle 0
+RuntimeCmd: *** Unknown syntax: # Paquetes con destino MAC 02 → puerto 2 (h2)
+RuntimeCmd: Adding entry to exact match table IngressPipeImpl.l2_exact_table
+match key:           EXACT-00:00:00:00:00:02
+action:              IngressPipeImpl.set_egress_port
+runtime data:        00:02
+Entry has been added with handle 1
+RuntimeCmd: 

@@ -74,8 +74,8 @@ def main():
         sys.exit(1)
 
     net = Mininet(topo=Exercise3Topo(), controller=None, link=TCLink)
-    net.staticArp()
     net.start()
+    net.staticArp()
 
     print("\n" + "=" * 60)
     print("Topologia activa (2 switches).  En otra terminal:")

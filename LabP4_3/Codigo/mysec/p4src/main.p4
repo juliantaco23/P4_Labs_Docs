@@ -80,6 +80,7 @@ struct parsed_headers_t {
 
 
 struct local_metadata_t {
+    @field_list(1)
     bit<9>    port1;
     bit<9>    port2;
 }
@@ -178,8 +179,8 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
 
    
     action clone_to_cpu() {
-        clone_preserving_field_list(CloneType.I2E, CPU_CLONE_SESSION_ID, {standard_metadata.ingress_port} 
-);
+        clone_preserving_field_list(CloneType.I2E, CPU_CLONE_SESSION_ID, 1);
+    }
     }
 
 

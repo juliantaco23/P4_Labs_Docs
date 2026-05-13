@@ -1,4 +1,4 @@
-a# MRI Exercise — Adaptation Knowledge Base
+# MRI Exercise — Adaptation Knowledge Base
 
 ## Origen
 - **Fuente original**: `p4lang/tutorials/exercises/mri`
@@ -235,6 +235,154 @@ El código P4 de MRI es **100% compatible con simple_switch** porque:
 | Parser | Simple (Ethernet→IPv4) | Recursivo (parse_swtrace loop) |
 | send.py necesidad | Semi-necesario (tos=1) | Obligatorio (IP Option 31) |
 | receive.py necesidad | Semi-necesario (grep tos) | Obligatorio (parse MRI headers) |
+
+---
+
+## Secuencia de Validación Completa
+
+### Limpieza obligatoria antes de iniciar
+```bash
+sudo pkill -9 simple_switch ; sudo mn --clean ; rm -f /tmp/bmv2-*-notifications.ipc
+```
+
+### Paso 1: Compilar
+```bash
+cd LabP4_3/Codigo/mri
+mkdir -p p4src/build
+p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/mri.p4
+```
+Salida esperada: ningún error. El archivo `p4src/build/bmv2.json` debe existir.
+
+### Paso 2: Iniciar la topología
+```bash
+sudo python3 mininet/topo.py
+```
+Esperar que aparezca `mininet>`.
+
+### Paso 3: Instalar reglas (en otra terminal)
+```bash
+simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+simple_switch_CLI --thrift-port 9092 < s3-commands.txt
+```
+Cada comando imprime `"Done"` por cada regla instalada.
+
+### Paso 4: Verificar conectividad básica (sin MRI)
+Desde la CLI de Mininet:
+```
+mininet> pingall
+```
+**Resultado esperado** (sin MRI — solo ping estándar sin IP Option):
+- h1 ↔ h11: **FAIL** (misma subred, sin ARP → LPM falla en broadcast)
+- h2 ↔ h22: **FAIL** (mismo motivo)
+- Todos los pares cross-switch (h1↔h2, h1↔h22, h1↔h3, h11↔h2, h11↔h22, h11↔h3, h2↔h3, h22↔h3): **OK**
+- Porcentaje drop: `~ 25%` (4 pares intra-switch de 16 pares totales)
+
+> **Nota**: los paquetes `ping` sin IP Option nunca activan el egress MRI (ihl==5 → accept directamente). Para ver MRI hay que usar `send.py`.
+
+### Paso 5: Prueba MRI con send.py
+
+**Terminal h2** (receptor):
+```
+mininet> h2 ./receive.py &
+```
+
+**Terminal h1** (emisor — 3 paquetes con 1 seg de pausa):
+```
+mininet> h1 ./send.py 10.0.2.2 "P4 is cool" 3
+```
+
+**Salida esperada en h2** (para cada paquete recibido):
+```
+got a packet
+###[ Ethernet ]###
+  ...
+###[ IP ]###
+  version   = 4
+  ihl       = 9        # 5 (base) + 2 (ipv4_option) + 2 (mri,2B) = ihl aumentado en 4
+  ...
+  options   \
+   |###[ MRI ]###
+   |  copy_flag= 0
+   |  optclass = 0
+   |  option   = 31
+   |  length   = 20    # 4 (ipv4_option header) + 2 (mri count) + 2*8B (2 swtraces)
+   |  count    = 2
+   |  swtraces \
+   |   |###[ SwitchTrace ]###
+   |   |  swid     = 2        # s2 agrega primero en egress (push_front)
+   |   |  qdepth   = 0        # cola vacía
+   |   |###[ SwitchTrace ]###
+   |   |  swid     = 1        # s1 agrega (push_front mueve s1 al frente)
+   |   |  qdepth   = 0
+```
+
+> **Observación clave**: los swtraces están en orden inverso al camino. `push_front` agrega al inicio, por lo que el último switch en el camino aparece primero. En la salida, swid=2 (s2) va antes que swid=1 (s1), pero el paquete viajó s1→s2. Esto es correcto: la "pila" crece hacia adelante.
+
+### Paso 6: Prueba de congestión con iperf (MRI + qdepth)
+
+**Terminal h22** (servidor UDP):
+```
+mininet> h22 iperf -s -u &
+```
+
+**Terminal h11** (cliente UDP — genera congestión en el enlace s1↔s2):
+```
+mininet> h11 iperf -c 10.0.2.22 -t 15 -u &
+```
+
+**Terminal h2** (receptor MRI):
+```
+mininet> h2 ./receive.py &
+```
+
+**Terminal h1** (emisor MRI — 30 paquetes):
+```
+mininet> h1 ./send.py 10.0.2.2 "P4 is cool" 30
+```
+
+**Salida esperada**: los primeros paquetes tienen `qdepth=0` para swid=1. A medida que el tráfico iperf satura el enlace s1↔s2 (bottleneck 0.5 Mbps), se observa `qdepth` creciente en swid=1:
+```
+swid=2, qdepth=0
+swid=1, qdepth=0        # inicio, cola vacía
+...
+swid=2, qdepth=0
+swid=1, qdepth=42       # congestión creciendo
+...
+swid=2, qdepth=0
+swid=1, qdepth=1891     # saturación
+```
+La profundidad de cola es `standard_metadata.deq_qdepth` (unidades: celdas de 80 bytes en bmv2).
+
+---
+
+## Notas Técnicas de Implementación
+
+### setValid() después de push_front — CRÍTICO
+
+En bmv2 >= 1.11 (conforme a P4_16 spec), los elementos empujados por `push_front` quedan **inválidos** hasta que se llama explícitamente `setValid()`. Sin esta llamada, los campos `swid` y `qdepth` no se escriben y el paquete puede comportarse de forma inesperada.
+
+```p4
+hdr.swtraces.push_front(1);
+hdr.swtraces[0].setValid();   // ← OBLIGATORIO en bmv2 >= 1.11
+hdr.swtraces[0].swid = swid;
+```
+
+En bmv2 < 1.11 (comportamiento P4_14 heredado), `push_front` marcaba automáticamente el elemento como válido. El entorno del laboratorio usa bmv2 estándar de Ubuntu 20.04 donde esta llamada es necesaria.
+
+### send.py — argumentos y comportamiento
+```
+./send.py <dst_ip> "<message>" <count>
+```
+- `count`: número de paquetes a enviar
+- Hay un `sleep(1)` entre paquetes → los paquetes llegan 1 por segundo a h2
+- El paquete inicial tiene `count=0, swtraces=[]` → la opción MRI existe pero sin trazas
+- Cada switch incrementa `count` y agrega un swtrace
+
+### Diferencia entre ihl original y final
+- Paquete inicial (send.py): `ihl=7` (5 base + 2 por IP Option de 16B con MRI vacío)
+- Paquete en h2 (2 switches): `ihl=9` (7 + 2 por s1 + ??? — dependiendo de cómo Scapy serializa)
+- Cada switch añade 8 bytes (2 words de 4B) → `ihl += 2`
 
 ---
 

@@ -1,3 +1,4 @@
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:02 => 2
 table_add IngressPipeImpl.TS_table IngressPipeImpl.TimeStamp_port 00:00:00:00:00:02 1 => 1
+table_add IngressPipeImpl.TS_table IngressPipeImpl.TimeStamp_port 00:00:00:00:00:01 1 => 1
