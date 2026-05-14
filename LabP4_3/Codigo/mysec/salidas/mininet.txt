@@ -1,29 +1,100 @@
-root@p4:/home/p4/P4_Labs_Docs/1# sudo python3 mininet/topo.py
+root@p4:/home/p4/P4_Labs_Docs/LabP4_3/Codigo/mysec# sudo python3 mininet/topo.py
 *** Creating network
 *** Adding hosts:
 h1 h2 
 *** Adding switches:
-s1 
+s1 s2 
 *** Adding links:
-(2.00Mbit 10ms delay 5.00000% loss) (2.00Mbit 10ms delay 5.00000% loss) (h1, s1) (5.00Mbit 1ms delay 2.00000% loss) (5.00Mbit 1ms delay 2.00000% loss) (h2, s1) 
+(5.00Mbit 5ms delay 1.00000% loss) (5.00Mbit 5ms delay 1.00000% loss) (h1, s1) (5.00Mbit 5ms delay 1.00000% loss) (5.00Mbit 5ms delay 1.00000% loss) (s1, s2) (5.00Mbit 5ms delay 1.00000% loss) (5.00Mbit 5ms delay 1.00000% loss) (s2, h2) 
 *** Configuring hosts
 h1 h2 
 *** Starting controller
 
-*** Starting 1 switches
+*** Starting 2 switches
 s1 ⚡ Starting s1 @ thrift-port 9090
+   cmd: simple_switch -i 1@s1-eth1 -i 2@s1-eth2 --thrift-port 9090 --device-id 0 /home/p4/P4_Labs_Docs/LabP4_3/Codigo/mysec/mininet/../p4src/build/bmv2.json
+s2 ⚡ Starting s2 @ thrift-port 9091
+   cmd: simple_switch -i 1@s2-eth1 -i 2@s2-eth2 --thrift-port 9091 --device-id 1 /home/p4/P4_Labs_Docs/LabP4_3/Codigo/mysec/mininet/../p4src/build/bmv2.json
 
 
 ============================================================
-Topologia activa.  En otra terminal ejecutar:
+Topologia activa (2 switches).  En otra terminal:
   simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-Luego aqui:  pingall
+  simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+
+Verificar:  pingall
+MySec test: h1 python3 mininet/send_mysec.py
 ============================================================
 
 *** Starting CLI:
 mininet> pingall
 *** Ping: testing ping reachability
 h1 -> h2 
+h2 -> X 
+*** Results: 50% dropped (1/2 received)
+mininet> pingall
+*** Ping: testing ping reachability
+h1 -> h2 
 h2 -> h1 
 *** Results: 0% dropped (2/2 received)
+mininet> h1 python3 mininet/send_mysec.py
+
+Enviando paquete MySec por eth0...
+###[ Ethernet ]### 
+  dst       = 00:00:00:00:00:02
+  src       = 00:00:00:00:00:01
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 5
+     tos       = 0x0
+     len       = 57
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 64
+     proto     = 169
+     chksum    = 0x6619
+     src       = 10.0.0.1
+     dst       = 10.0.0.2
+     \options   \
+###[ Raw ]### 
+        load      = '\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+
+  ✗  No se recibió respuesta en 3s
+     Verificar:
+       1. Reglas instaladas:  simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+                              simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+       2. pingall funciona antes de enviar MySec
+mininet> h1 python3 mininet/send_mysec.py
+
+Enviando paquete MySec por eth0...
+###[ Ethernet ]### 
+  dst       = 00:00:00:00:00:02
+  src       = 00:00:00:00:00:01
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 5
+     tos       = 0x0
+     len       = 57
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 64
+     proto     = 169
+     chksum    = 0x6619
+     src       = 10.0.0.1
+     dst       = 10.0.0.2
+     \options   \
+###[ Raw ]### 
+        load      = '\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+
+  ✗  No se recibió respuesta en 3s
+     Verificar:
+       1. Reglas instaladas:  simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+                              simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+       2. pingall funciona antes de enviar MySec
 mininet> 

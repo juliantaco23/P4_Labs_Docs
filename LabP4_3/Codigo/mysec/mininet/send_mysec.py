@@ -45,6 +45,10 @@ class MySec(Packet):
         BitField("th",                     0, 48),
     ]
 
+# Registrar la capa: IP proto 169 → MySec
+# Sin esto, Scapy decodifica el payload como Raw y srp1() no reconoce la respuesta
+bind_layers(IP, MySec, proto=169)
+
 
 def print_mysec(pkt):
     """Imprime los campos de timestamp del paquete de respuesta."""
@@ -85,6 +89,10 @@ def main():
     pkt.show2()
 
     # srp1: envía y espera una respuesta en capa 2
+    # conf.checkIPaddr=False: P4 no invierte IP src/dst en el paquete de respuesta,
+    # por lo que el chequeo estándar de Scapy (sent.dst == resp.src) falla y
+    # srp1() descartaría la respuesta aunque el paquete haya llegado correctamente.
+    conf.checkIPaddr = False
     resp = srp1(pkt, iface=IFACE, timeout=TIMEOUT, verbose=False)
 
     if resp is None:
