@@ -181,7 +181,6 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
     action clone_to_cpu() {
         clone_preserving_field_list(CloneType.I2E, CPU_CLONE_SESSION_ID, 1);
     }
-    }
 
 
     table acl_table {

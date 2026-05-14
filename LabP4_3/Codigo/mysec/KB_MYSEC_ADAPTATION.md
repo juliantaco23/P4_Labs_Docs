@@ -38,6 +38,19 @@ h1 (00:00:00:00:00:01 / 10.0.0.1) ─── s1 ─── s2 ─── h2 (00:00:
 
 ---
 
+## Distinción crítica: `mysec.egres_port` ≠ puerto físico de salida
+
+Esta confusión es la más frecuente al leer el código. Hay dos cosas completamente distintas con nombres parecidos:
+
+| Variable | Tipo | Quién la usa | Para qué |
+|----------|------|-------------|----------|
+| `standard_metadata.egress_spec` | Metadato bmv2 | Infraestructura del switch | Decide el **puerto físico** por donde sale el paquete |
+| `hdr.mysec.egres_port` | Campo del header MySec | El pipeline P4 | **Máquina de estado**: "¿cuál era el destino declarado cuando salió?" |
+
+`mysec.egres_port = 1` en el egress de s1 (primer paso) **no hace que el paquete salga por port1**. El paquete ya fue dirigido a port2 (hacia s2) por `egress_spec=2`, que se fijó en ingress (TS_table). El pipeline egress de v1model no puede redirigir el paquete a otro puerto físico — llega demasiado tarde en la cadena. La modificación de `mysec.egres_port` solo escribe bytes en el header para que la condición de la siguiente pasada pueda distinguir el estado.
+
+---
+
 ## Flujo del Paquete MySec
 
 ### Paquete inicial (enviado por send_mysec.py)
@@ -46,14 +59,14 @@ Ethernet(src=h1_MAC, dst=h2_MAC) / IP(proto=169) / MySec(ingress_port=1, egres_p
 ```
 
 ### Paso 1 — s1 ingress (ida, puerto 1 → puerto 2)
-- `TS_table`: (dst=h2_MAC, ingress_port=1) → `TimeStamp_port(2)` → `egress_spec=2`
+- `TS_table`: (dst=h2_MAC, ingress_port=1) → `TimeStamp_port(2)` → **`egress_spec=2`** ← puerto físico decidido aquí
 
 ### Paso 2 — s1 egress (ida, `ingress_port=1` en contexto egress)
 - `local_metadata.port1 = 2`
 - Condición Check2: `ingress_port(1)==1 && mysec.ingress_port(1)==1 && mysec.egres_port(2)==2` → **TRUE**
   - `process_time_sw2 = egress_global_timestamp - ingress_global_timestamp` ← tiempo en s1 (ida)
-  - `hdr.ethernet.dst_addr = 0x000000000001` (cambia destino a h1_MAC)
-  - `mysec.ingress_port = 1, mysec.egres_port = 1` (marca como "procesado por s1")
+  - `hdr.ethernet.dst_addr = 0x000000000001` (cambia destino a h1_MAC — el paquete SIGUE saliendo por port2 físico)
+  - `mysec.ingress_port = 1, mysec.egres_port = 1` (marca de estado — NO es el puerto físico)
 
 ### Paso 3 — s2 ingress (rebote, puerto 1)
 - dst=h1_MAC, ingress_port=1
@@ -95,6 +108,44 @@ Ethernet(src=h1_MAC, dst=h2_MAC) / IP(proto=169) / MySec(ingress_port=1, egres_p
 
 ## Reglas de Control
 
+### Modelo de forwarding: dos planos paralelos
+
+MySec implementa **dos planos de forwarding independientes** según el protocolo IP:
+
+| Tipo de paquete | Tabla usada | Tipo de forwarding |
+|-----------------|-------------|-------------------|
+| proto ≠ 169 (ping, TCP...) | `l2_exact_table` | L2 estándar (dst_MAC → puerto) |
+| proto = 169 (MySec) | `TS_table` | Basado en contexto: (dst_MAC + ingress_port) → puerto |
+
+Para paquetes MySec, `l2_exact_table` **no se consulta en absoluto** (el `if/else` en ingress lo excluye). El enrutamiento de MySec no es L2 estándar: la segunda clave `ingress_port` no existe en forwarding L2 convencional. Es enrutamiento basado en contexto de llegada. La telemetría (timestamps) se añade encima de ese forwarding en el pipeline de egress — son dos mecanismos separados.
+
+### ¿Por qué s2 también necesita TS_table?
+
+Porque el código es idéntico en ambos switches y el `apply()` del ingress dice:
+
+```p4
+if (hdr.ipv4.protocol != PROTOCOL_MYSEC) {
+    l2_exact_table.apply();
+} else {
+    TS_table.apply();   // ← proto=169 SIEMPRE va aquí, en cualquier switch
+}
+```
+
+Si s2 no tuviera entradas en `TS_table`, la default action es `drop` — el paquete muere en s2. En s2, TS_table no sirve para distinguir direcciones (solo pasa el paquete una vez), sino simplemente para tener una regla de reenvío válida para paquetes MySec.
+
+### Propósito de TS_table vs l2_exact_table
+
+Ambas tablas reenvían paquetes por un puerto de salida, pero difieren en **cuándo se usan y cuántas claves usan**:
+
+| Tabla | Clave | Usada para |
+|-------|-------|------------|
+| `l2_exact_table` | `dst_MAC` (1 campo) | Paquetes estándar (proto ≠ 169) |
+| `TS_table` | `(dst_MAC, ingress_port)` (2 campos) | Paquetes MySec (proto = 169) |
+
+La clave de dos campos en `TS_table` es necesaria porque **el mismo switch s1 procesa el paquete dos veces** (ida y vuelta) y en cada dirección el paquete tiene la misma MAC destino potencial pero llega por un puerto diferente. Sin `ingress_port` como segunda clave, s1 no podría distinguir si está en el camino de ida o de vuelta.
+
+Ejemplo en s1: cuando dst=h1_MAC llega por port2 (de s2, camino de vuelta), el switch debe enviarlo a port1 (hacia h1). Si solo se usa dst_MAC, no hay forma de saber que viene de vuelta y no de h1 mismo.
+
 ### s1-commands.txt
 ```
 table_add IngressPipeImpl.l2_exact_table IngressPipeImpl.set_egress_port 00:00:00:00:00:01 => 1
@@ -122,10 +173,25 @@ table_add IngressPipeImpl.TS_table IngressPipeImpl.TimeStamp_port 00:00:00:00:00
 |-------|-------------------------------|--------|-------------|
 | l2_exact_table | h1_MAC | set_egress_port(1) | Reenviar hacia s1 |
 | l2_exact_table | h2_MAC | set_egress_port(2) | Reenviar a h2 |
-| TS_table | h2_MAC, port1 | TimeStamp_port(1) | Paquete MySec de ida → rebota por port1 |
-| TS_table | **h1_MAC, port1** | **TimeStamp_port(1)** | **Paquete MySec ya procesado → sigue rebotando** |
+| TS_table | h2_MAC, port1=1 | TimeStamp_port(1) | Paquete MySec de ida → rebota por port1 |
+| TS_table | **h1_MAC, port1=1** | **TimeStamp_port(1)** | **Paquete MySec ya procesado → sigue rebotando** |
+
+> **Ambas entradas de TS_table salen por port 1** — así es correcto. port1 de s2 conecta a s1; port2 conecta a h2. El protocolo MySec nunca debe entregar el paquete a h2 directamente (el rebote siempre va a s1). Si alguna entrada dijera `=> 2`, el paquete sería entregado a h2 en lugar de seguir el camino de rebote.
+
+> **Código muerto**: la primera entrada `(h2_MAC, port1=1) => 1` **nunca se activa**. Cuando un paquete MySec llega a s2, ya tiene `dst_addr = h1_MAC` — s1 lo modifica en su pipeline de egress antes de que el paquete salga hacia s2. Sin embargo, la entrada es inofensiva (una tabla miss usaría la `default_action = drop`, y la entrada `h1_MAC` sí que coincide y reenvía correctamente).
 
 > **Bug corregido**: la cuarta entrada en s2-commands.txt (`h1_MAC, port1 => 1`) **no existía** en el archivo original. Sin ella, el paquete con dst_addr=h1_MAC (modificado por s1 egress) no encontraba match en la TS_table de s2 y era **descartado** por la acción default `drop`. Esto impedía que el paquete regresara a s1 y h1 nunca recibía respuesta.
+
+---
+
+## Campos de Capas Estándar Modificados
+
+**Ethernet** — único campo de capas estándar modificado por P4:
+- `dst_addr` — modificado por s1 en egress (camino de ida): cambia de h2_MAC a h1_MAC para redirigir el paquete de vuelta
+
+**IPv4** — **ningún campo estándar es modificado** por el pipeline MySec. El checksum está comentado (`/* update_checksum ... */`) porque ningún campo IPv4 cambia.
+
+> Nota para el redactor: explorar por qué no se modifica `ttl` (el forwarding en MySec no hace decremento explícito). También se puede indagar si esto causa problemas con paquetes que rebotan muchas veces (el TTL no decrece, así que no hay protección contra loops en el encaminamiento).
 
 ---
 
@@ -181,13 +247,15 @@ Sin `send_mysec.py`:
 
 ## Limitaciones del Diseño
 
-1. **s2 no mide timestamps**: el diseño actual solo registra tiempos en s1 (dos pasadas). s2 actúa como reflector puro. Esto es coherente con el objetivo del ejercicio: medir la latencia de procesamiento de s1 desde dos ángulos (ida y vuelta).
+1. **s2 no mide timestamps**: el diseño actual solo registra tiempos en s1 (dos pasadas). s2 actúa como reflector puro. Esto es coherente con el objetivo del ejercicio: medir la latencia de procesamiento de s1 desde dos ángulos (ida y vuelta). Para que s2 midiera se necesitarían: (a) condiciones similares en `EgressPipeImpl` de s2, y (b) campos adicionales en `mysec_t` — los actuales `process_time_sw1/sw2` ya están ocupados por s1. Los campos `ingress_back_time_sw1`, `total` y `th` están disponibles para esa extensión.
 
 2. **Proceso de timestamp solo en egress**: `egress_global_timestamp - ingress_global_timestamp` en el pipeline egress mide la latencia desde que el paquete entra al switch (ingress) hasta que está en el pipeline de egress. No incluye el tiempo de encolado/dequeue.
 
 3. **Precisión limitada por delay de links**: los links tienen `delay=5ms`, lo que introduce ruido en las mediciones. Los valores de `process_time_sw1/sw2` deben ser significativamente menores a 5 ms = 5,000,000 ns; de lo contrario, el delay del link está siendo incluido.
 
 4. **`ingress_back_time_sw1`, `total`, `th`**: estos campos están definidos en `mysec_t` pero **no son escritos** por el pipeline P4 actual. Quedan en 0. Son campos de extensión para que el estudiante implemente métricas adicionales.
+
+5. **Proto 169 no es estándar IANA**: en un entorno real con routers estándar (Cisco, Juniper), el protocolo 169 sería tratado como desconocido y probablemente descartado por firewalls. La alternativa producción es **INT (In-band Network Telemetry)**, un estándar P4.org que usa mecanismos similares encapsulados en UDP/GRE para no alterar campos IP estándar. INT también tiene el concepto de "transit hop" (equivalente a s2 como reflector). El concepto de MySec es correcto; el mecanismo de transporte necesitaría INT para producción.
 
 ---
 
@@ -301,6 +369,20 @@ Paquete recibido:
 ---
 
 ## Notas para el LaTeX (LabP4_3.tex)
+
+### Contextualización con INT (In-band Network Telemetry)
+
+El redactor debe incluir una nota que conecte MRI y MySec con el estándar industrial. Texto sugerido:
+
+> El estándar **INT (In-band Network Telemetry, P4.org)** aplica el mismo principio que MRI: un header stack que crece por salto, con roles diferenciados de *source* (nodo que inicia la telemetría), *transit* (cada switch intermedio que añade sus datos) y *sink* (receptor que extrae e interpreta). El ejercicio MRI implementa el mecanismo fundamental de INT; la versión de producción añade un formato estandarizado y encapsulación en UDP/GRE para ser compatible con redes heterogéneas donde no todos los nodos son P4. Empresas como Meta y Netflix despliegan INT en sus data centers donde toda la infraestructura de switching es P4-capable. MySec, por su parte, implementa un paradigma distinto al de INT: mide la latencia de un nodo individual mediante una ruta de rebote (OAM — Operations, Administration and Maintenance), análogo a lo que protocolos como ITU-T Y.1731 (Ethernet OAM) o BFD hacen en redes de producción. Mientras INT mide telemetría distribuida a lo largo de un camino, MySec/OAM mide el comportamiento de un punto de la red desde la perspectiva del flujo de retorno.
+
+**Implicación para la narrativa del lab**: el lab cubre dos paradigmas complementarios de telemetría in-network:
+- **Por camino** (MRI / INT): ¿qué pasó en cada hop del trayecto?
+- **Por nodo** (MySec / OAM): ¿cuánto tarda este switch en procesar en cada dirección?
+
+No reemplazar MySec con INT — son conceptualmente distintos y complementarios en el currículo.
+
+---
 
 - Este es el **ejercicio de actividad del estudiante** de LabP4_3
 - El TODO del estudiante se encuentra en `EgressPipeImpl.apply()`:

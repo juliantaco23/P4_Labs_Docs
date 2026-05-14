@@ -29,13 +29,18 @@ MRI (Multi-Hop Route Inspection) es una versión simplificada de INT (In-Band Ne
 
 | Aspecto | Con 2 switches | Con 3 switches |
 |---------|----------------|----------------|
-| Entradas MRI | Siempre 2 (swid=1, swid=2) | 2 ó 3 según ruta |
-| Rutas posibles | h1→s1→s2→h2 (única) | h1→s1→s2→h2 o h1→s1→s3→...  |
-| "Route Inspection" | No hay inspección de ruta: solo hay una | Demuestra que el **camino real** queda registrado |
-| Valor INT | Reducido a "queue inspection" | Completo: path + queue per-hop |
+| Entradas MRI por paquete | Siempre 2 (swid=1, swid=2) | **Siempre 2**, pero el par varía según la ruta |
+| Rutas posibles | h1→s1→s2→h2 (única) | h1→s1→s2→h2 **y** h1→s1→s3→h3 (rutas distintas) |
+| "Route Inspection" | No hay inspección de ruta: solo hay una | El header stack refleja cuál camino tomó el paquete |
+| Valor INT | Reducido a "queue inspection" | Completo: **qué switches** + queue per-hop |
 | Enlace bottleneck | Observable pero sin contraste | Contraste: qdepth alto en s1→s2, bajo en s1→s3 |
 
-MRI se llama "Multi-Hop **Route** Inspection" — con 2 switches hay un único camino, no hay "ruta" que inspeccionar. El tercer switch permite al estudiante verificar que el header stack refleja fielmente el camino tomado.
+**Aclaración crítica**: con esta topología y estas tablas de ruteo, **ningún paquete individual pasa por los 3 switches a la vez**. Siempre hay exactamente 2 swtraces. Lo que cambia es *qué par de switches* aparece:
+- h1→h2: `{swid=1, swid=2}` (ruta s1→s2)
+- h1→h3: `{swid=1, swid=3}` (ruta s1→s3)
+- h2→h3: `{swid=2, swid=3}` (ruta s2→s3)
+
+Esto es el "Route" en Multi-Hop Route Inspection: el header stack permite saber **qué nodos estuvo en el camino**, no cuántos.
 
 **Impacto en consistencia con Exercise 3**: Exercise 3 (MySec) usa 2 switches porque su mecánica es un protocolo de bounce (h1→s1→s2→s1→h1) que requiere exactamente 2 switches. MRI es forwarding lineal con path recording. Las topologías diferentes están justificadas por objetivos diferentes.
 
@@ -225,6 +230,33 @@ El código P4 de MRI es **100% compatible con simple_switch** porque:
 
 ## Diferencias entre MRI y ECN (ambos ejercicios de p4lang)
 
+### Propósito conceptual distinto
+
+| Aspecto | ECN | MRI |
+|---------|-----|-----|
+| ¿Qué señala? | "Hubo congestión en algún punto" | "En cada switch X, la cola tenía Y celdas" |
+| ¿Dónde queda el registro? | En 2 bits del campo TOS existente | En un header stack que crece por salto |
+| ¿Se puede saber QUÉ switch congestionó? | **No** — solo hay 1 bit de marca global | **Sí** — cada switch escribe su propio swid |
+| ¿Se acumula por switch? | **No** — un switch posterior puede sobrescribir | **Sí** — push_front garantiza que todos los registros coexisten |
+| Tamaño del paquete | **No cambia** — flip de bits en campo existente | **Crece** — +8 bytes por switch atravesado |
+| Modelo de telemetría | Pasivo (marca un campo existente) | Activo (inyecta datos nuevos en el paquete) |
+
+### Qué es nuevo en MRI que no existía en ECN
+
+| Concepto P4 nuevo | En ECN | En MRI |
+|-------------------|--------|--------|
+| **Header stacks** `switch_t[MAX_HOPS]` | No | ✓ arrays de headers |
+| **`push_front`** | No | ✓ agregar al stack en runtime |
+| **`setValid()`** obligatorio | No | ✓ P4_16 spec tras push_front |
+| **Parser recursivo** (`parse_swtrace` loop) | No | ✓ estado que se llama a sí mismo |
+| **IP Options** (`ihl > 5` para detectar) | No | ✓ campo `ihl` como señal de parser |
+| **`table_set_default`** con parámetros | No | ✓ default action sin clave de match |
+| **Múltiples campos de longitud coordinados** | No | ✓ `ihl` + `totalLen` + `optionLength` sincronizados |
+| Egress marking | ✓ (ecn field) | ✓ (push_front al stack) |
+| `deq_qdepth` | ✓ (como umbral) | ✓ (como dato a registrar) |
+
+En ECN, `deq_qdepth` se usa para **tomar una decisión** (marcar o no marcar). En MRI, se usa como **dato a incluir en el paquete** — telemetría real, no solo señalización.
+
 | Aspecto | ECN | MRI |
 |---------|-----|-----|
 | Topología adaptada | 2 switches | 3 switches |
@@ -276,7 +308,7 @@ mininet> pingall
 - h1 ↔ h11: **FAIL** (misma subred, sin ARP → LPM falla en broadcast)
 - h2 ↔ h22: **FAIL** (mismo motivo)
 - Todos los pares cross-switch (h1↔h2, h1↔h22, h1↔h3, h11↔h2, h11↔h22, h11↔h3, h2↔h3, h22↔h3): **OK**
-- Porcentaje drop: `~ 25%` (4 pares intra-switch de 16 pares totales)
+- Porcentaje drop: `20%` (4 de 20 pares totales — con 5 hosts son 5×4=20 pings dirigidos; 4 fallan: h1↔h11 y h2↔h22 misma subred, sin reglas ARP ni broadcast en el switch P4)
 
 > **Nota**: los paquetes `ping` sin IP Option nunca activan el egress MRI (ihl==5 → accept directamente). Para ver MRI hay que usar `send.py`.
 
@@ -299,7 +331,7 @@ got a packet
   ...
 ###[ IP ]###
   version   = 4
-  ihl       = 9        # 5 (base) + 2 (ipv4_option) + 2 (mri,2B) = ihl aumentado en 4
+  ihl       = 10       # 6 (inicial: 5 base + 1 por IP Option vacía) + 2 (s1) + 2 (s2) = 10
   ...
   options   \
    |###[ MRI ]###
@@ -317,7 +349,11 @@ got a packet
    |   |  qdepth   = 0
 ```
 
-> **Observación clave**: los swtraces están en orden inverso al camino. `push_front` agrega al inicio, por lo que el último switch en el camino aparece primero. En la salida, swid=2 (s2) va antes que swid=1 (s1), pero el paquete viajó s1→s2. Esto es correcto: la "pila" crece hacia adelante.
+> **Observación clave — orden LIFO**: los swtraces están en **orden inverso al camino físico**. `push_front` agrega al índice 0 desplazando los existentes:
+> 1. s1 egress: push_front → stack = `[swid=1]`
+> 2. s2 egress: push_front → stack = `[swid=2, swid=1]` ← swid=2 queda primero
+>
+> En la salida siempre aparece primero el **último switch en el camino** (destino) y último el switch de origen. Esto es correcto por diseño: la pila refleja el camino en reversa.
 
 ### Paso 6: Prueba de congestión con iperf (MRI + qdepth)
 
@@ -341,22 +377,76 @@ mininet> h2 ./receive.py &
 mininet> h1 ./send.py 10.0.2.2 "P4 is cool" 30
 ```
 
-**Salida esperada**: los primeros paquetes tienen `qdepth=0` para swid=1. A medida que el tráfico iperf satura el enlace s1↔s2 (bottleneck 0.5 Mbps), se observa `qdepth` creciente en swid=1:
-```
-swid=2, qdepth=0
-swid=1, qdepth=0        # inicio, cola vacía
-...
-swid=2, qdepth=0
-swid=1, qdepth=42       # congestión creciendo
-...
-swid=2, qdepth=0
-swid=1, qdepth=1891     # saturación
-```
-La profundidad de cola es `standard_metadata.deq_qdepth` (unidades: celdas de 80 bytes en bmv2).
+**Salida esperada (validada)**: los primeros paquetes tienen `qdepth=0`. Cuando el tráfico iperf satura el bottleneck s1→s2 (0.5 Mbps), el `qdepth` de swid=1 sube bruscamente y luego baja cuando iperf termina:
 
----
+| Paquete # | swid=1 qdepth | swid=2 qdepth | Estado |
+|-----------|---------------|---------------|--------|
+| 1–3 | 0 | 1 | Iperf recién iniciando |
+| 4 | **61** | 1 | Cola saturada: 61×80 = 4.880 bytes |
+| 5 | 56 | 1 | Cola drenando |
+| 6 | 51 | 0 | |
+| 7 | 45 | 1 | |
+| 8 | 42 | 0 | |
+| 9–30 | **0** | 0 | Iperf terminó (15s), cola vacía |
 
-## Notas Técnicas de Implementación
+- `qdepth` se mide en **celdas de 80 bytes** (bmv2). qdepth=61 → 4.880 bytes en cola.
+- swid=**1** tiene qdepth alto porque la congestión está en el **puerto3 de salida de s1** (hacia s2, bottleneck).
+- swid=**2** tiene qdepth ≈0 porque el link s2→h2 no tiene límite de ancho de banda → sin congestión.
+- El salto 0→61 es brusco porque iperf UDP por defecto envía a **1 Mbps** (el doble del bottleneck de 0.5 Mbps), llenando la cola casi instantáneamente.
+- swid **no cambia** entre paquetes: es un identificador estático configurado en el control plane.
+
+**h22 iperf servidor**: muestra solo el banner de inicio durante la ejecución. El resumen final (datagramas recibidos, % packet loss) aparece al terminar los 15s. Dado que iperf envía a 1 Mbps sobre un link de 0.5 Mbps, se espera ~50% packet loss en h22.
+
+**h11 iperf cliente — verificación matemática**:
+```
+0.0-15.0 sec  1.88 MBytes  1.05 Mbits/sec  — Sent 1338 datagrams
+```
+- 1.338 datagramas × 1.470 bytes = 1.966.860 bytes ≈ **1,88 MBytes** ✓
+- 1.966.860 × 8 / 15s = **1.048.992 bps ≈ 1,05 Mbits/sec** ✓
+- 1,05 Mbps > 0,5 Mbps (bottleneck) → confirma saturación → explica el qdepth elevado en s1
+
+### Paso 7: Demostrar "Route Inspection" — envío hacia h3
+
+Este paso es **el que justifica los 3 switches**. Hasta aquí solo hemos visto la ruta s1→s2. Ahora enviamos hacia h3 para mostrar que el header stack registra una ruta diferente: s1→s3.
+
+**Terminal h3** (receptor — abrir xterm si es posible):
+```
+mininet> h3 ./receive.py &
+```
+
+**Terminal h1** (emisor — 3 paquetes):
+```
+mininet> h1 ./send.py 10.0.3.3 "P4 route" 3
+```
+
+**Salida esperada en h3**:
+```
+got a packet
+###[ IP ]###
+     ihl       = 10
+     len       = 58
+     ttl       = 62
+     \options   \
+      |###[ MRI ]###
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]###
+      |   |  swid      = 3        # ← s3, NO s2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]###
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+```
+
+**Comparación de rutas** — este es el valor pedagógico del tercer switch:
+
+| Destino | Ruta física | swtraces observados |
+|---------|-------------|---------------------|
+| h2 (10.0.2.2) | h1 → s1 → s2 → h2 | `{swid=2, swid=1}` |
+| h3 (10.0.3.3) | h1 → s1 → s3 → h3 | `{swid=3, swid=1}` |
+
+El mismo código P4, las mismas reglas de default action en los switches — pero **el header stack resultante es diferente según la ruta tomada**. Esto es imposible de demostrar con solo 2 switches (hay una única ruta posible).
 
 ### setValid() después de push_front — CRÍTICO
 
@@ -379,10 +469,32 @@ En bmv2 < 1.11 (comportamiento P4_14 heredado), `push_front` marcaba automática
 - El paquete inicial tiene `count=0, swtraces=[]` → la opción MRI existe pero sin trazas
 - Cada switch incrementa `count` y agrega un swtrace
 
-### Diferencia entre ihl original y final
-- Paquete inicial (send.py): `ihl=7` (5 base + 2 por IP Option de 16B con MRI vacío)
-- Paquete en h2 (2 switches): `ihl=9` (7 + 2 por s1 + ??? — dependiendo de cómo Scapy serializa)
-- Cada switch añade 8 bytes (2 words de 4B) → `ihl += 2`
+### Campos de capas estándar modificados por MRI
+
+**IPv4** — modificados en `add_swtrace` (egress, por cada switch):
+- `ihl` += 2 por switch (8 bytes = 2 words de 32 bits)
+- `totalLen` += 8 por switch
+- `hdrChecksum` — recalculado en `MyComputeChecksum` (porque `ihl` y `totalLen` cambian en egress)
+- `optionLength` += 8 por switch (campo dentro de `ipv4_option_t`)
+
+**IPv4** — modificados en `ipv4_forward` (ingress, forwarding estándar):
+- `ttl` -= 1 por switch (decremento estándar L3)
+
+**Ethernet** — modificados en `ipv4_forward` (ingress):
+- `srcAddr` ← valor anterior de `dstAddr`
+- `dstAddr` ← MAC del próximo salto
+
+> Nota para el redactor: explorar la interacción entre `ihl`/`totalLen` y el recálculo del checksum: ambos campos se modifican en el pipeline de **egress** pero `MyComputeChecksum` corre después, por lo que el checksum siempre refleja los valores finales. El campo `optionLength` es redundante con `totalLen` pero necesario para que el receptor parsee correctamente el bloque de IP Options.
+
+### Valores concretos observados en validación
+| Campo | Inicial (send.py) | En h2 (2 switches) | Cálculo |
+|-------|-------------------|--------------------|---------|
+| `ihl` | 6 | 10 | 6 + 2×2 |
+| `len` (`totalLen`) | 42 | 58 | 42 + 2×8 |
+| `length` (`optionLength`) | 4 | 20 | 4 + 2×8 |
+| `count` | 0 | 2 | 0 + 2 |
+| `ttl` | 64 | 62 | 64 − 2 |
+| `swtraces` | [] | [swid=2 qdepth=0, swid=1 qdepth=0] | push_front orden inverso |
 
 ---
 

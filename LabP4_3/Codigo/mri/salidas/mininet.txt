@@ -1,29 +1,1330 @@
-root@p4:/home/p4/P4_Labs_Docs/1# sudo python3 mininet/topo.py
+root@p4:/home/p4/P4_Labs_Docs/LabP4_3/Codigo/mri# chmod +x send.py receive.py
+root@p4:/home/p4/P4_Labs_Docs/LabP4_3/Codigo/mri# sudo python3 mininet/topo.py
 *** Creating network
 *** Adding hosts:
-h1 h2 
+h1 h2 h3 h11 h22 
 *** Adding switches:
-s1 
+s1 s2 s3 
 *** Adding links:
-(2.00Mbit 10ms delay 5.00000% loss) (2.00Mbit 10ms delay 5.00000% loss) (h1, s1) (5.00Mbit 1ms delay 2.00000% loss) (5.00Mbit 1ms delay 2.00000% loss) (h2, s1) 
+(s1, h1) (s1, h11) (0.50Mbit) (0.50Mbit) (s1, s2) (s1, s3) (s2, h2) (s2, h22) (s3, h3) (s3, s2) 
 *** Configuring hosts
-h1 h2 
+h1 h2 h3 h11 h22 
 *** Starting controller
 
-*** Starting 1 switches
+*** Starting 3 switches
 s1 ⚡ Starting s1 @ thrift-port 9090
+   cmd: simple_switch -i 1@s1-eth1 -i 2@s1-eth2 -i 3@s1-eth3 -i 4@s1-eth4 --thrift-port 9090 --device-id 0 /home/p4/P4_Labs_Docs/LabP4_3/Codigo/mri/mininet/../p4src/build/bmv2.json
+s2 ⚡ Starting s2 @ thrift-port 9091
+   cmd: simple_switch -i 3@s2-eth3 -i 1@s2-eth1 -i 2@s2-eth2 -i 4@s2-eth4 --thrift-port 9091 --device-id 1 /home/p4/P4_Labs_Docs/LabP4_3/Codigo/mri/mininet/../p4src/build/bmv2.json
+s3 ⚡ Starting s3 @ thrift-port 9092
+   cmd: simple_switch -i 2@s3-eth2 -i 1@s3-eth1 -i 3@s3-eth3 --thrift-port 9092 --device-id 2 /home/p4/P4_Labs_Docs/LabP4_3/Codigo/mri/mininet/../p4src/build/bmv2.json
 
 
 ============================================================
-Topologia activa.  En otra terminal ejecutar:
+Topologia MRI activa (3 switches).  En otra terminal:
   simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-Luego aqui:  pingall
+  simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+  simple_switch_CLI --thrift-port 9092 < s3-commands.txt
+
+Prueba MRI:
+  h2:  ./receive.py
+  h22: iperf -s -u
+  h1:  ./send.py 10.0.2.2 "P4 is cool" 30
+  h11: iperf -c 10.0.2.22 -t 15 -u
+  -> Observar swid y qdepth en h2
 ============================================================
 
 *** Starting CLI:
 mininet> pingall
 *** Ping: testing ping reachability
-h1 -> h2 
-h2 -> h1 
-*** Results: 0% dropped (2/2 received)
-mininet> 
+h1 -> h2 h3 X h22 
+h2 -> h1 h3 h11 X 
+h3 -> h1 h2 h11 h22 
+h11 -> X h2 h3 h22 
+h22 -> h1 X h3 h11 
+*** Results: 20% dropped (16/20 received)
+
+mininet> xterm h1 h2 h11 h22
+
+_________________________H22______________________________
+------------------------------------------------------------
+Server listening on UDP port 5001
+Receiving 1470 byte datagrams
+UDP buffer size:  208 KByte (default)
+------------------------------------------------------------
+
+_________________________H2_______________________________
+sniffing on eth0
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 1
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 1
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 1
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 1
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 61
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 1
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 56
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 51
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 1
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 45
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 1
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 42
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:02:02
+  src       = 08:00:00:00:02:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x60b0
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 2
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+_________________________H11______________________________
+------------------------------------------------------------
+Client connecting to 10.0.2.2, UDP port 5001
+Sending 1470 byte datagrams, IPG target: 11215.21 us (kalman adjust)
+UDP buffer size:  208 KByte (default)
+------------------------------------------------------------
+[  5] local 10.0.1.11 port 34174 connected with 10.0.2.2 port 5001
+[ ID] Interval       Transfer     Bandwidth
+[  5]  0.0-15.0 sec  1.88 MBytes  1.05 Mbits/sec
+[  5] Sent 1338 datagrams
+
+_________________________H1_______________________________
+..............................###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 08:00:00:00:01:01
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 6
+     tos       = 0x0
+     len       = 42
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 64
+     proto     = udp
+     chksum    = 0x43bc
+     src       = 10.0.1.1
+     dst       = 10.0.2.2
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 4
+      |  count     = 0
+      |  \swtraces  \
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1c7b
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+_________________________H1-3_______________________________
+./send.py 10.0.3.3 "P4 is cool" 3
+...###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 08:00:00:00:01:01
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 6
+     tos       = 0x0
+     len       = 42
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 64
+     proto     = udp
+     chksum    = 0x42bb
+     src       = 10.0.1.1
+     dst       = 10.0.3.3
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 4
+      |  count     = 0
+      |  \swtraces  \
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1b7a
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+Sent 1 packets.
+
+
+
+_________________________H3_______________________________
+./receive.py
+sniffing on eth0
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:03:03
+  src       = 08:00:00:00:03:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x5faf
+     src       = 10.0.1.1
+     dst       = 10.0.3.3
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 3
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1b7a
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:03:03
+  src       = 08:00:00:00:03:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x5faf
+     src       = 10.0.1.1
+     dst       = 10.0.3.3
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 3
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1b7a
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
+got a packet
+###[ Ethernet ]### 
+  dst       = 08:00:00:00:03:03
+  src       = 08:00:00:00:03:00
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 10
+     tos       = 0x0
+     len       = 58
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 62
+     proto     = udp
+     chksum    = 0x5faf
+     src       = 10.0.1.1
+     dst       = 10.0.3.3
+     \options   \
+      |###[ MRI ]### 
+      |  copy_flag = 0
+      |  optclass  = control
+      |  option    = 31
+      |  length    = 20
+      |  count     = 2
+      |  \swtraces  \
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 3
+      |   |  qdepth    = 0
+      |   |###[ SwitchTrace ]### 
+      |   |  swid      = 1
+      |   |  qdepth    = 0
+###[ UDP ]### 
+        sport     = 1234
+        dport     = 4321
+        len       = 18
+        chksum    = 0x1b7a
+###[ Raw ]### 
+           load      = 'P4 is cool'
+
