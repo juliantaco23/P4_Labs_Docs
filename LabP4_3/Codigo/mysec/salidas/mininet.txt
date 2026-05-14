@@ -86,24 +86,25 @@ Paquete recibido:
 ###[ MySec ]### 
         ingress_port= 2
         egres_port= 1
-        process_time_sw1= 779
-        process_time_sw2= 1323
-        egress_time_sw1= 41763658
-        ingress_back_time_sw1= 0
-        total     = 0
+        process_time_sw1= 630
+        process_time_sw2= 679
+        egress_time_sw1= 13149994
+        ingress_back_time_sw1= 13149364
+        total     = 1309
         th        = 0
 
 
 ============================================================
   MySec — Resultados de latencia in-switch
 ============================================================
-  process_time_sw1      : 779 ns  (latencia egress S1)
-  process_time_sw2      : 1323 ns  (latencia egress S2)
-  egress_time_sw1       : 41763658  (timestamp egress S1)
-  ingress_back_time_sw1 : 0
-  total                 : 0
+  process_time_sw1      : 630 ns  (latencia egress S1, camino vuelta s2→h1)
+  process_time_sw2      : 679 ns  (latencia egress S1, camino ida h1→s2)
+  egress_time_sw1       : 13149994  (timestamp egress S1)
+  ingress_back_time_sw1 : 13149364
+  total                 : 1309
   th                    : 0
 ============================================================
   ✓  Timestamps registrados correctamente
 
 mininet> 
+

@@ -265,11 +265,13 @@ El TODO de la Parte 2 en `EgressPipeImpl` pide implementar tres campos que queda
 
 ### Descripción de cada campo
 
-| Campo | Qué debe contener | Cómo calcularlo |
-|-------|-------------------|-----------------|
-| `ingress_back_time_sw1` | Timestamp de ingress en s1 cuando el paquete llega de vuelta (desde s2) | `standard_metadata.ingress_global_timestamp` (en el branch Check1) |
-| `total` | Suma del tiempo de procesamiento de s1 en ambas pasadas | `hdr.mysec.process_time_sw1 + hdr.mysec.process_time_sw2` |
-| `th` | Indicador de umbral (1 si la latencia total supera un límite, 0 si no) | `if (hdr.mysec.total > UMBRAL) { th = 1; } else { th = 0; }` |
+| Campo | Tipo | Qué debe contener | Cómo calcularlo |
+|-------|------|-------------------|-----------------|
+| `ingress_back_time_sw1` | `bit<48>` | Timestamp absoluto de ingress en s1 en el camino de vuelta | `standard_metadata.ingress_global_timestamp` (en el branch Check1) |
+| `total` | `bit<48>` | Suma del tiempo de procesamiento de s1 en ambas pasadas (ns) | `hdr.mysec.process_time_sw1 + hdr.mysec.process_time_sw2` |
+| `th` | `bit<48>` usado como flag 0/1 | Indicador de umbral de latencia — el switch toma la decisión en el plano de datos | `if (hdr.mysec.total > UMBRAL) { th = 1; } else { th = 0; }` |
+
+**Sobre `th` (threshold flag)**: aunque el tipo es `bit<48>` (mismo que el resto de campos del header por uniformidad), se usa como booleano. El switch evalúa si la latencia total supera un límite definido en el programa P4 y escribe el resultado directamente en el header. El receptor (h1) no necesita hacer el cálculo — la decisión ya viene tomada desde el plano de datos. Este patrón es relevante en producción para alertas en tiempo real sin involucrar al controlador: si `th=1`, el colector de telemetría sabe inmediatamente que ese flujo tuvo latencia anormal.
 
 ### Solución de referencia (no incluir en el enunciado del estudiante)
 ```p4
