@@ -253,9 +253,42 @@ Sin `send_mysec.py`:
 
 3. **Precisión limitada por delay de links**: los links tienen `delay=5ms`, lo que introduce ruido en las mediciones. Los valores de `process_time_sw1/sw2` deben ser significativamente menores a 5 ms = 5,000,000 ns; de lo contrario, el delay del link está siendo incluido.
 
-4. **`ingress_back_time_sw1`, `total`, `th`**: estos campos están definidos en `mysec_t` pero **no son escritos** por el pipeline P4 actual. Quedan en 0. Son campos de extensión para que el estudiante implemente métricas adicionales.
+4. **`ingress_back_time_sw1`, `total`, `th`**: campos de extensión para que el estudiante implemente métricas adicionales (TODO en `EgressPipeImpl`). Están en 0 en la solución base. Ver sección "Métricas Adicionales — Actividad del Estudiante" para detalle.
 
 5. **Proto 169 no es estándar IANA**: en un entorno real con routers estándar (Cisco, Juniper), el protocolo 169 sería tratado como desconocido y probablemente descartado por firewalls. La alternativa producción es **INT (In-band Network Telemetry)**, un estándar P4.org que usa mecanismos similares encapsulados en UDP/GRE para no alterar campos IP estándar. INT también tiene el concepto de "transit hop" (equivalente a s2 como reflector). El concepto de MySec es correcto; el mecanismo de transporte necesitaría INT para producción.
+
+---
+
+## Métricas Adicionales — Actividad del Estudiante
+
+El TODO de la Parte 2 en `EgressPipeImpl` pide implementar tres campos que quedan en 0 en la solución base. Se activan en el branch Check1 (s1, camino de vuelta):
+
+### Descripción de cada campo
+
+| Campo | Qué debe contener | Cómo calcularlo |
+|-------|-------------------|-----------------|
+| `ingress_back_time_sw1` | Timestamp de ingress en s1 cuando el paquete llega de vuelta (desde s2) | `standard_metadata.ingress_global_timestamp` (en el branch Check1) |
+| `total` | Suma del tiempo de procesamiento de s1 en ambas pasadas | `hdr.mysec.process_time_sw1 + hdr.mysec.process_time_sw2` |
+| `th` | Indicador de umbral (1 si la latencia total supera un límite, 0 si no) | `if (hdr.mysec.total > UMBRAL) { th = 1; } else { th = 0; }` |
+
+### Solución de referencia (no incluir en el enunciado del estudiante)
+```p4
+hdr.mysec.ingress_back_time_sw1 = standard_metadata.ingress_global_timestamp;
+hdr.mysec.total = hdr.mysec.process_time_sw1 + hdr.mysec.process_time_sw2;
+if (hdr.mysec.total > 5000) {
+    hdr.mysec.th = 1;
+} else {
+    hdr.mysec.th = 0;
+}
+```
+
+### Valores esperados con la solución de referencia (datos de validación)
+Con `process_time_sw1 = 779 ns` y `process_time_sw2 = 1323 ns`:
+- `ingress_back_time_sw1` = timestamp de ingress en s1 vuelta (valor absoluto, no comparable entre ejecuciones)
+- `total = 779 + 1323 = 2102 ns`
+- `th = 0` (2102 < 5000 — la latencia de bmv2 es baja en VM sin carga)
+
+> **Nota de diseño**: el umbral de 5000 ns es orientativo para bmv2 en VM. En hardware P4 real (Tofino), la latencia típica es 1,000–5,000 ns y el umbral debería ajustarse según el SLA del servicio. La pedagogía del campo `th` es enseñar decisiones en el plano de datos basadas en métricas acumuladas.
 
 ---
 
@@ -348,9 +381,21 @@ Paquete recibido:
   ✓  Timestamps registrados correctamente
 ```
 
-**Valores típicos** en el emulador bmv2:
-- `process_time_sw1` y `process_time_sw2`: entre 5,000 y 50,000 ns (5 a 50 μs)
-- Ambos valores deben ser similares (misma operación en el mismo switch)
+**Valores observados** en la validación (VM bmv2):
+- `process_time_sw1 = 779 ns`, `process_time_sw2 = 1323 ns`
+- `egress_time_sw1 = 41763658 ns` (timestamp absoluto desde inicio del switch)
+
+**Rango típico en emulador bmv2**: 500 – 50,000 ns (0.5 – 50 µs)
+- bmv2 es un **software switch** que corre en CPU de propósito general. El pipeline P4 se interpreta instrucción a instrucción, por lo que las latencias son órdenes de magnitud mayores que en hardware.
+- `process_time_sw2 > process_time_sw1` es normal: el primer procesamiento tiene más overhead (acceso a tablas "frío").
+- Ambos valores deben ser **significativamente menores a 5,000,000 ns (5 ms)** — el delay configurado en los links. Si se acercan a ese valor, el link delay está siendo incluido en la medición.
+
+**En hardware P4 real (ASIC Tofino, Intel)**:
+- Latencia de pipeline típica: 1 – 5 µs (1,000 – 5,000 ns)
+- Latencia port-to-port total: < 1 µs en switches de datacenter
+- Los campos `process_time_sw1/sw2` reflejarían tiempos mucho menores y más consistentes entre sí
+- La variabilidad (jitter) sería también mucho menor al no competir con el scheduler del SO
+
 - Si alguno es 0 → verificar s2-commands.txt (debe tener la cuarta entrada para h1_MAC)
 
 ### Indicadores de éxito

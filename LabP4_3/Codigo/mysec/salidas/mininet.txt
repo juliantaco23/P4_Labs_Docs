@@ -30,11 +30,6 @@ MySec test: h1 python3 mininet/send_mysec.py
 mininet> pingall
 *** Ping: testing ping reachability
 h1 -> h2 
-h2 -> X 
-*** Results: 50% dropped (1/2 received)
-mininet> pingall
-*** Ping: testing ping reachability
-h1 -> h2 
 h2 -> h1 
 *** Results: 0% dropped (2/2 received)
 mininet> h1 python3 mininet/send_mysec.py
@@ -58,20 +53,20 @@ Enviando paquete MySec por eth0...
      src       = 10.0.0.1
      dst       = 10.0.0.2
      \options   \
-###[ Raw ]### 
-        load      = '\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+###[ MySec ]### 
+        ingress_port= 1
+        egres_port= 2
+        process_time_sw1= 0
+        process_time_sw2= 0
+        egress_time_sw1= 0
+        ingress_back_time_sw1= 0
+        total     = 0
+        th        = 0
 
 
-  ✗  No se recibió respuesta en 3s
-     Verificar:
-       1. Reglas instaladas:  simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-                              simple_switch_CLI --thrift-port 9091 < s2-commands.txt
-       2. pingall funciona antes de enviar MySec
-mininet> h1 python3 mininet/send_mysec.py
-
-Enviando paquete MySec por eth0...
+Paquete recibido:
 ###[ Ethernet ]### 
-  dst       = 00:00:00:00:00:02
+  dst       = 00:00:00:00:00:01
   src       = 00:00:00:00:00:01
   type      = IPv4
 ###[ IP ]### 
@@ -88,13 +83,27 @@ Enviando paquete MySec por eth0...
      src       = 10.0.0.1
      dst       = 10.0.0.2
      \options   \
-###[ Raw ]### 
-        load      = '\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+###[ MySec ]### 
+        ingress_port= 2
+        egres_port= 1
+        process_time_sw1= 779
+        process_time_sw2= 1323
+        egress_time_sw1= 41763658
+        ingress_back_time_sw1= 0
+        total     = 0
+        th        = 0
 
 
-  ✗  No se recibió respuesta en 3s
-     Verificar:
-       1. Reglas instaladas:  simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-                              simple_switch_CLI --thrift-port 9091 < s2-commands.txt
-       2. pingall funciona antes de enviar MySec
+============================================================
+  MySec — Resultados de latencia in-switch
+============================================================
+  process_time_sw1      : 779 ns  (latencia egress S1)
+  process_time_sw2      : 1323 ns  (latencia egress S2)
+  egress_time_sw1       : 41763658  (timestamp egress S1)
+  ingress_back_time_sw1 : 0
+  total                 : 0
+  th                    : 0
+============================================================
+  ✓  Timestamps registrados correctamente
+
 mininet> 
