@@ -1,0 +1,15 @@
+# s2-commands.txt — Reglas de forwarding para s2 (server-side switch)
+#
+# s2 conecta:
+#   port1 → h3 (10.0.6.1, MAC 08:00:00:00:06:01) — servidor HTTP
+#   port2 → s1 (enlace inter-switch, hacia h1/h2/clientes)
+#
+# Uso:
+#   simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+
+# ── Forwarding hacia h3 (servidor) ───────────────────────────────────────────
+table_add MyIngress.ip_forward MyIngress.forward 10.0.6.1 => 1 08:00:00:00:06:01
+
+# ── Forwarding de vuelta hacia clientes (h1, h2) vía s1 ──────────────────────
+table_add MyIngress.ip_forward MyIngress.forward 10.0.1.1  => 2 08:00:00:00:01:01
+table_add MyIngress.ip_forward MyIngress.forward 10.0.1.82 => 2 08:00:00:00:01:52
