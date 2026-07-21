@@ -1,0 +1,19 @@
+ip_proto = [];
+src_port = [547, 1221, 1899, 1900, 3071, 4999, 38034, 49280, 49908, 60633, 60757];
+dst_port = [67, 130, 1917];
+
+ when src_port<=3071 and dst_port<=67 and src_port<=547 then 1;
+ when src_port<=3071 and dst_port<=67 and src_port>547 and src_port<=1221 then 4;
+ when src_port<=3071 and dst_port<=67 and src_port>547 and src_port>1221 then 4;
+ when src_port<=3071 and dst_port>67 and src_port<=1899 and dst_port<=130 then 4;
+ when src_port<=3071 and dst_port>67 and src_port<=1899 and dst_port>130 then 4;
+ when src_port<=3071 and dst_port>67 and src_port>1899 and src_port<=1900 then 3;
+ when src_port<=3071 and dst_port>67 and src_port>1899 and src_port>1900 then 4;
+ when src_port>3071 and src_port<=49280 and dst_port<=1917 and src_port<=38034 then 4;
+ when src_port>3071 and src_port<=49280 and dst_port<=1917 and src_port>38034 then 3;
+ when src_port>3071 and src_port<=49280 and dst_port>1917 and src_port<=4999 then 0;
+ when src_port>3071 and src_port<=49280 and dst_port>1917 and src_port>4999 then 4;
+ when src_port>3071 and src_port>49280 and src_port<=60633 and src_port<=49908 then 4;
+ when src_port>3071 and src_port>49280 and src_port<=60633 and src_port>49908 then 4;
+ when src_port>3071 and src_port>49280 and src_port>60633 and src_port<=60757 then 3;
+ when src_port>3071 and src_port>49280 and src_port>60633 and src_port>60757 then 4;
