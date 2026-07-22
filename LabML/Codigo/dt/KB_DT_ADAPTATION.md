@@ -228,9 +228,13 @@ simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 
 ```
 mininet> xterm h2 h3 h4
-# En cada xterm: tcpdump -i eth0 -n
+# En cada xterm (filtrar IPv6 de fondo):
+tcpdump -i eth0 -n not ip6
 mininet> h1 python3 send_packets.py
 ```
+
+> **Nota**: `tcpdump -i eth0 -n` también captura paquetes IPv6 router-solicitation
+> propios del stack del host. Son inofensivos pero añaden ruido; filtrar con `not ip6`.
 
 **Resultados esperados** (basados en el árbol L3 generado):
 
@@ -258,9 +262,13 @@ simple_switch_CLI --thrift-port 9090 <<< "counter_read ipv4_exact_table_counter 
 | Problema | Causa probable | Solución |
 |---|---|---|
 | `p4c` error: "header has no fields" | TO-DO [2] o [3] no implementados | Añadir campos a `ipv4_t` y `tcp_t` |
-| Ningún paquete llega a h2/h3/h4 | Reglas no instaladas o error de compilación | Verificar `s1-commands.txt` y recompilar |
+| Ningún paquete llega a h2/h3/h4 — counters en 0 | `send()` de Scapy no puede resolver ARP a través del switch P4 | `send_packets.py` ya usa `sendp()` con Ethernet explícito; verificar que se ejecuta desde dentro de Mininet |
+| `WARNING: No route found` en send_packets.py | IP destino fuera del /26 o Scapy en modo capa-3 | Ya corregido: `send_packets.py` usa `sendp()` + `Ether()` directamente sin routing |
+| `DUPLICATE_ENTRY` al instalar reglas | Líneas en blanco en `s1-commands.txt` causan que simple_switch_CLI repita el último comando | Ya corregido: `s1-commands.txt` no tiene líneas en blanco. Si se edita manualmente, no dejar líneas vacías entre comandos |
+| `Invalid Syntax` al cargar `s1-commands.txt` | Comentarios con caracteres Unicode (`─`) o versión vieja del CLI | `s1-commands.txt` solo usa ASCII en los comentarios. Si persiste, eliminar todas las líneas `#` del archivo |
 | `table_add` falla con "priority" error | Falta el campo de prioridad en range tables | Añadir un entero al final de cada `table_add` |
-| TCPdump no captura en el host receptor | Feature tables no matchean | Revisar rangos en `s1-commands.txt` |
+| Solo paquetes IPv6 en tcpdump | El stack IPv6 del host envía router-solicitations de fondo | Filtrar con `tcpdump -i eth0 -n not ip6` |
+| TCPdump no captura ningún paquete IP | send_packets.py no inició o counters siguen en 0 | Verificar que el script corre desde h1; reiniciar tcpdump ANTES de ejecutar send_packets.py |
 | BMv2 muere inmediatamente | JSON inválido | Recompilar con `p4c-bm2-ss` |
 | `rules-extracted.txt` tiene IPs en vez de MACs | Bug en Traduction_Functions.ipynb | No usar `rules-extracted.txt` directamente; usar `s1-commands.txt` como referencia |
 
