@@ -1,42 +1,5 @@
-# s1-commands.txt — Reglas del clasificador DT para el ejercicio DT (árbol L3)
-#
-# Árbol generado por: ML_Pipeline_DT.ipynb
-# Dataset: UNSW IoT Traffic Traces (Sivanathan et al., 2018) — 21,061,054 paquetes, 20 días
-# Árbol: max_depth=3, features: [ip_proto, src_port, dst_port], SEED=42
-#
-# Resultado del árbol (tree_L3_generado.txt):
-#   ip_proto = [];                              ← sin split (dataset solo TCP/UDP)
-#   src_port = [547, 1899, 3071, 49280, 60633]; ← 6 intervalos (buckets 1–6)
-#   dst_port = [67, 1917];                      ← 3 intervalos (buckets 1–3)
-#
-# Reglas del árbol (formato get_lineage):
-#   src_port<=547  and dst_port<=67              → Class 1 (Sensors) → h2
-#   src_port<=3071 (otras combinaciones)         → Class 4 (Others)  → h2
-#   3072<=src_port<=49280 and dst_port<=1917     → Class 3 (Video)   → h3
-#   3072<=src_port<=49280 and dst_port>1917      → Class 0 (Smart)   → h4
-#   49281<=src_port<=60633                       → Class 4 (Others)  → h2
-#   src_port>60633                               → Class 3 (Video)   → h3
-#   non-TCP (ICMP, etc.): action_select2=1, action_select3=1 → h2
-#
-# Topología: h1 (sender), h2/h3/h4 (receivers)
-#   h2 (port 2, MAC 08:00:00:00:01:02) ← Class 1 (Sensors) + Class 4 (Others)
-#   h3 (port 3, MAC 08:00:00:00:01:03) ← Class 3 (Video)
-#   h4 (port 4, MAC 08:00:00:00:01:04) ← Class 0 (Smart-Static)
-#
-# Uso:
-#   simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-#
-# Formato range tables en simple_switch_CLI:
-#   table_add <tabla> <acción> <key_min>-><key_max> => <params> <prioridad>
-# ─────────────────────────────────────────────────────────────────────────────
-
-# ── Feature 1: IP Protocol ────────────────────────────────────────────────────
-# En el dataset UNSW (solo TCP/UDP), ip_proto no genera splits.
-# Todos los protocolos caen en el bucket 1 (rango completo).
 table_add MyIngress.feature1_exact MyIngress.set_actionselect1 0->255 => 1 10
 
-# ── Feature 2: TCP Source Port ────────────────────────────────────────────────
-# Umbrales del árbol L3: [547, 1899, 3071, 49280, 60633]
 table_add MyIngress.feature2_exact MyIngress.set_actionselect2 0->547 => 1 10
 table_add MyIngress.feature2_exact MyIngress.set_actionselect2 548->1899 => 2 10
 table_add MyIngress.feature2_exact MyIngress.set_actionselect2 1900->3071 => 3 10
@@ -44,39 +7,16 @@ table_add MyIngress.feature2_exact MyIngress.set_actionselect2 3072->49280 => 4 
 table_add MyIngress.feature2_exact MyIngress.set_actionselect2 49281->60633 => 5 10
 table_add MyIngress.feature2_exact MyIngress.set_actionselect2 60634->65535 => 6 10
 
-# ── Feature 3: TCP Destination Port ──────────────────────────────────────────
-# Umbrales del árbol L3: [67, 1917]
 table_add MyIngress.feature3_exact MyIngress.set_actionselect3 0->67 => 1 10
 table_add MyIngress.feature3_exact MyIngress.set_actionselect3 68->1917 => 2 10
 table_add MyIngress.feature3_exact MyIngress.set_actionselect3 1918->65535 => 3 10
 
-# ── Decision table: combina los tres selects → decisión de forwarding ─────────
-#
-# Mapeo de buckets a clases y hosts:
-#   sel2 en [1,3] (src_port 0–3071)           → h2  Classes 1+4 (Sensors+Others)
-#   sel2=4, sel3 en [1,2] (dst_port 0–1917)   → h3  Class 3 (Video)
-#   sel2=4, sel3=3 (dst_port >1917)            → h4  Class 0 (Smart-Static)
-#   sel2=5 (src_port 49281–60633)              → h2  Class 4 (Others)
-#   sel2=6 (src_port 60634–65535)              → h3  Class 3 (Video)
-#
-# Nota: paquetes no-TCP tienen action_select2=1 y action_select3=1
-#       (ver bloque else en TO-DO [8] de dt_switch.p4) → caen en sel2 en [1,3] → h2
-#
-# Formato: table_add MyIngress.ipv4_exact MyIngress.ipv4_forward
-#           <sel1_rng> <sel2_rng> <sel3_rng> => <dst_mac> <egress_port> <prioridad>
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Class 1 (Sensors) + Class 4 (Others): src_port [0–3071] → h2
 table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 1->3 1->3 => 08:00:00:00:01:02 2 5
 
-# Class 3 (Video): src_port [3072–49280] + dst_port [0–1917] → h3
 table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 4->4 1->2 => 08:00:00:00:01:03 3 10
 
-# Class 0 (Smart-Static): src_port [3072–49280] + dst_port [1918–65535] → h4
 table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 4->4 3->3 => 08:00:00:00:01:04 4 10
 
-# Class 4 (Others): src_port [49281–60633] (any dst_port) → h2
 table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 5->5 1->3 => 08:00:00:00:01:02 2 5
 
-# Class 3 (Video): src_port [60634–65535] (any dst_port) → h3
 table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 6->6 1->3 => 08:00:00:00:01:03 3 5
