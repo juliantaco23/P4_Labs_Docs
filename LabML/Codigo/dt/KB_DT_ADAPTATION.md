@@ -257,6 +257,37 @@ simple_switch_CLI --thrift-port 9090 <<< "counter_read ipv4_exact_table_counter 
 
 ---
 
+## Resultado de validación (ejecutado 2026-07-22)
+
+### Instalación de reglas
+- Compilación: ✅ sin errores
+- 15 reglas instaladas sin duplicados (1 + 6 + 3 + 5), sin DUPLICATE_ENTRY
+
+### Contadores post-ejecución
+| Contador | Handle | Paquetes | Verificación |
+|---|---|---|---|
+| feature1_table_counter[0] | 0→255, bucket 1 | **55** | 7×5 + 20 random = todos los IP ✅ |
+| ipv4_exact_table_counter[0] | h2 catch-all (sel2 1→3) | **16** | Esc.1(5) + Esc.2(5) + Esc.7 ICMP(5) + 1 random ✅ |
+
+### Clasificación por host — verificación completa
+| Host | Escenarios deterministas | Paquetes det. | Paquetes random | Correcto |
+|---|---|---|---|---|
+| h2 | 1 (sport≤547), 2 (sport 1900–3071), 6 (sport 49281–60633), 7 (ICMP) | 20 | 2 | ✅ |
+| h3 | 3 (sport 3072–49280, dport 68–1917), 5 (sport 60634–65535) | 10 | 4 | ✅ |
+| h4 | 4 (sport 3072–49280, dport >1917) | 5 | 14 | ✅ |
+
+Los 20 paquetes aleatorios (Escenario 8) se distribuyen como predice el árbol:
+- Bucket 4 de src_port cubre el ~70% del espacio → ~14/20 paquetes con sel2=4
+- Dentro de sel2=4, ~97% de dst_ports aleatorios caen en sel3=3 → h4
+- Resultado real: **14 en h4, 4 en h3, 2 en h2** — estadísticamente coherente ✅
+
+### Comportamiento ARP en H2 (cosmético)
+H2 recibe paquetes TCP SYN de H1 y envía `ARP who-has 10.0.1.1` periódicamente para
+responder con SYN-ACK. El switch descarta los ARP (sin tabla ARP en P4).
+Es comportamiento normal e inofensivo para el ejercicio (solo envío unidireccional).
+
+---
+
 ## Problemas conocidos y soluciones
 
 | Problema | Causa probable | Solución |

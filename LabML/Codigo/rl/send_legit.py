@@ -28,12 +28,12 @@ try:
         pkt_syn = (Ether(src=get_if_hwaddr(IFACE), dst='ff:ff:ff:ff:ff:ff') /
                    IP(src='10.0.1.1', dst=DST_IP) /
                    TCP(sport=sport, dport=DST_PORT, flags='S'))
-        send(pkt_syn, iface=IFACE, verbose=False)
+        sendp(pkt_syn, iface=IFACE, verbose=False)
         # ACK (simula el 3-way handshake completo)
         pkt_ack = (Ether(src=get_if_hwaddr(IFACE), dst='ff:ff:ff:ff:ff:ff') /
                    IP(src='10.0.1.1', dst=DST_IP) /
                    TCP(sport=sport, dport=DST_PORT, flags='A'))
-        send(pkt_ack, iface=IFACE, verbose=False)
+        sendp(pkt_ack, iface=IFACE, verbose=False)
         time.sleep(0.5)   # 2 paquetes por segundo (tráfico normal)
 except KeyboardInterrupt:
     print("\n[LEGIT] Detenido.")

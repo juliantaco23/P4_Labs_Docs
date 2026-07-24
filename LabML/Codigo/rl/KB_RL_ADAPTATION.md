@@ -125,14 +125,27 @@ sudo python3 mininet/topo.py
 ```bash
 simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 simple_switch_CLI --thrift-port 9091 < s2-commands.txt
-# Esperar: 4 + 3 confirmaciones table_add.
+# Esperar: 4 confirmaciones table_add para s1, 3 para s2 (sin DUPLICATE_ENTRY).
+# IMPORTANTE: s1-commands.txt y s2-commands.txt no deben tener líneas en blanco
+# entre comandos — simple_switch_CLI repite el último comando en cada línea vacía.
 ```
 
-### Conectividad inicial (sin firewall)
+### Verificación de forwarding (sin firewall)
+
+> **No usar `ping`**: el switch P4 descarta los paquetes ARP (sin tabla ARP),
+> y h1/h3 están en subredes distintas (/26 vs /24) sin gateway configurado.
+> Usar sendp/tcpdump en su lugar.
+
 ```
-mininet> h1 ping -c2 10.0.6.1    # debe funcionar
-mininet> h2 ping -c2 10.0.6.1    # debe funcionar (aún sin reglas RL)
+mininet> xterm h3
+# En h3:
+tcpdump -i eth0 -n not ip6
+
+# En Mininet:
+mininet> h1 python3 send_legit.py &
 ```
+Esperar en h3: paquetes `10.0.1.1.XXXXX > 10.0.6.1.80` llegando ~2/s (SYN + ACK).
+Confirma que h1→h3 funciona con las reglas de forwarding activas.
 
 ### Test de lectura de registros
 ```bash
@@ -148,9 +161,14 @@ simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.firewall MyIngress
 
 ### Test de bloqueo
 ```
-mininet> h2 ping -c2 10.0.6.1    # debe FALLAR (bloqueado por firewall)
-mininet> h1 ping -c2 10.0.6.1    # debe FUNCIONAR (subred distinta)
+# Lanzar ataque desde h2 (en background)
+mininet> h2 python3 send_attack.py --pps 50 --duration 20 &
+
+# En h3 (xterm): debería NO ver paquetes de 10.0.1.82
+mininet> h1 python3 send_legit.py &
+# En h3: los paquetes de h1 (10.0.1.1) siguen llegando (subred diferente)
 ```
+Esperar: h3 ve paquetes de `10.0.1.1` pero ninguno de `10.0.1.82` ✅
 
 ### Eliminar regla de prueba
 ```bash
@@ -189,6 +207,9 @@ altos para acción 1 (block_attacker) en estados ≥ 1.
 | Agente siempre elige acción aleatoria | epsilon = 0.4 al inicio — normal. Esperar ≥ 20 episodios para el decaimiento | Es el comportamiento esperado al inicio |
 | h1 también queda bloqueado | El agente eligió acción 0 (block_all) | La Q-table aprenderá que eso es incorrecto (reward -10) |
 | BMv2 no actualiza registros entre resets | `register_reset` puede tardar un ciclo | Añadir `time.sleep(0.5)` después del reset |
+| `DUPLICATE_ENTRY` al instalar reglas | Líneas en blanco en s1-commands.txt/s2-commands.txt | Ya corregido: los archivos no tienen líneas vacías entre comandos |
+| `Invalid Syntax` al cargar comandos | Caracteres Unicode en comentarios (`─`) | Ya corregido: comentarios usan solo ASCII |
+| `ping h3` no funciona desde h1 | Switch descarta ARP; subredes distintas sin gateway | Usar `send_legit.py` + tcpdump para verificar conectividad (no ping) |
 
 ---
 

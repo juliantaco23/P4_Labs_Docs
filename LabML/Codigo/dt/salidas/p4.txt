@@ -1,0 +1,98 @@
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# mkdir -p p4src/build
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/dt_switch.p4
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to range match table MyIngress.feature1_exact
+match key:           RANGE-00 -> ff
+action:              MyIngress.set_actionselect1
+runtime data:        00:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to range match table MyIngress.feature2_exact
+match key:           RANGE-00:00 -> 02:23
+action:              MyIngress.set_actionselect2
+runtime data:        00:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to range match table MyIngress.feature2_exact
+match key:           RANGE-02:24 -> 07:6b
+action:              MyIngress.set_actionselect2
+runtime data:        00:02
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to range match table MyIngress.feature2_exact
+match key:           RANGE-07:6c -> 0b:ff
+action:              MyIngress.set_actionselect2
+runtime data:        00:03
+Entry has been added with handle 2
+RuntimeCmd: Adding entry to range match table MyIngress.feature2_exact
+match key:           RANGE-0c:00 -> c0:80
+action:              MyIngress.set_actionselect2
+runtime data:        00:04
+Entry has been added with handle 3
+RuntimeCmd: Adding entry to range match table MyIngress.feature2_exact
+match key:           RANGE-c0:81 -> ec:d9
+action:              MyIngress.set_actionselect2
+runtime data:        00:05
+Entry has been added with handle 4
+RuntimeCmd: Adding entry to range match table MyIngress.feature2_exact
+match key:           RANGE-ec:da -> ff:ff
+action:              MyIngress.set_actionselect2
+runtime data:        00:06
+Entry has been added with handle 5
+RuntimeCmd: Adding entry to range match table MyIngress.feature3_exact
+match key:           RANGE-00:00 -> 00:43
+action:              MyIngress.set_actionselect3
+runtime data:        00:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to range match table MyIngress.feature3_exact
+match key:           RANGE-00:44 -> 07:7d
+action:              MyIngress.set_actionselect3
+runtime data:        00:02
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to range match table MyIngress.feature3_exact
+match key:           RANGE-07:7e -> ff:ff
+action:              MyIngress.set_actionselect3
+runtime data:        00:03
+Entry has been added with handle 2
+RuntimeCmd: Adding entry to range match table MyIngress.ipv4_exact
+match key:           RANGE-00:01 -> 00:01       RANGE-00:01 -> 00:03    RANGE-00:01 -> 00:03
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:02  00:02
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to range match table MyIngress.ipv4_exact
+match key:           RANGE-00:01 -> 00:01       RANGE-00:04 -> 00:04    RANGE-00:01 -> 00:02
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:03  00:03
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to range match table MyIngress.ipv4_exact
+match key:           RANGE-00:01 -> 00:01       RANGE-00:04 -> 00:04    RANGE-00:03 -> 00:03
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:04  00:04
+Entry has been added with handle 2
+RuntimeCmd: Adding entry to range match table MyIngress.ipv4_exact
+match key:           RANGE-00:01 -> 00:01       RANGE-00:05 -> 00:05    RANGE-00:01 -> 00:03
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:02  00:02
+Entry has been added with handle 3
+RuntimeCmd: Adding entry to range match table MyIngress.ipv4_exact
+match key:           RANGE-00:01 -> 00:01       RANGE-00:06 -> 00:06    RANGE-00:01 -> 00:03
+action:              MyIngress.ipv4_forward
+runtime data:        08:00:00:00:01:03  00:03
+Entry has been added with handle 4
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# simple_switch_CLI --thrift-port 9090 <<< "counter_read feature1_table_counter 0"
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: this is the direct counter for table MyIngress.feature1_exact
+feature1_table_counter[0]= (2910 bytes, 55 packets)
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# simple_switch_CLI --thrift-port 9090 <<< "counter_read ipv4_exact_table_counter 0"
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: this is the direct counter for table MyIngress.ipv4_exact
+ipv4_exact_table_counter[0]= (804 bytes, 16 packets)
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# 
+

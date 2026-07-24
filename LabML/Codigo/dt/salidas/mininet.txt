@@ -1,0 +1,131 @@
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# sudo python3 mininet/topo.py
+*** Creating network
+*** Adding hosts:
+h1 h2 h3 h4 
+*** Adding switches:
+s1 
+*** Adding links:
+(s1, h1) (s1, h2) (s1, h3) (s1, h4) 
+*** Configuring hosts
+h1 h2 h3 h4 
+*** Starting controller
+
+*** Starting 1 switches
+s1 Starting s1 @ thrift-port 9090
+
+
+=== Topología DT lista ===
+Instala las reglas en otra terminal:
+  simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+
+*** Starting CLI:
+mininet> xterm h2 h3 h4
+mininet> h1 python3 send_packets.py
+=== DT Traffic Generator -- UNSW IoT L3 Tree ===
+Interface: eth0  |  src MAC: 08:00:00:00:01:01
+Sending packets across all branches of the decision tree...
+
+[1] TCP sport=100,   dport=50     -> Class 1 (Sensors)       -- expected: h2
+[2] TCP sport=2000,  dport=500    -> Class 4 (Others)        -- expected: h2
+[3] TCP sport=10000, dport=100    -> Class 3 (Video)         -- expected: h3
+[4] TCP sport=10000, dport=5000   -> Class 0 (Smart-Static)  -- expected: h4
+[5] TCP sport=62000, dport=80     -> Class 3 (Video)         -- expected: h3
+[6] TCP sport=55000, dport=8080   -> Class 4 (Others)        -- expected: h2
+[7] ICMP (non-TCP)               -> default bucket          -- expected: h2
+[8] Random mix -- 20 TCP packets with random port combinations
+
+Done. Verify traffic distribution with tcpdump on h2, h3, h4.
+Tip: use 'tcpdump -i eth0 -n not ip6' to filter IPv6 background traffic.
+
+Expected approximate distribution (based on UNSW IoT dataset class ratios):
+  h2 (Classes 1+4 -- Sensors+Others): ~80% of real traffic
+  h3 (Class 3     -- Video):          ~16% of real traffic
+  h4 (Class 0     -- Smart-Static):    ~5% of real traffic
+mininet> 
+
+
+
+
+
+______________ H2 ______________
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# tcpdump -i eth0 -n not ip6
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+23:57:08.654218 IP 10.0.1.1.1000 > 10.0.1.2.50: Flags [S], seq 0, win 8192, length 0
+23:57:08.654692 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:08.696891 IP 10.0.1.1.1000 > 10.0.1.2.50: Flags [S], seq 0, win 8192, length 0
+23:57:08.732649 IP 10.0.1.1.1000 > 10.0.1.2.50: Flags [S], seq 0, win 8192, length 0
+23:57:08.780620 IP 10.0.1.1.1000 > 10.0.1.2.50: Flags [S], seq 0, win 8192, length 0
+23:57:08.819788 IP 10.0.1.1.1000 > 10.0.1.2.50: Flags [S], seq 0, win 8192, length 0
+23:57:09.654673 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:09.857485 IP 10.0.1.1.2000 > 10.0.1.2.500: Flags [S], seq 0, win 8192, length 0
+23:57:09.904398 IP 10.0.1.1.2000 > 10.0.1.2.500: Flags [S], seq 0, win 8192, length 0
+23:57:09.963654 IP 10.0.1.1.2000 > 10.0.1.2.500: Flags [S], seq 0, win 8192, length 0
+23:57:10.016466 IP 10.0.1.1.2000 > 10.0.1.2.500: Flags [S], seq 0, win 8192, length 0
+23:57:10.060727 IP 10.0.1.1.2000 > 10.0.1.2.500: Flags [S], seq 0, win 8192, length 0
+23:57:10.683940 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:14.755570 IP 10.0.1.1.55000 > 10.0.1.2.8080: Flags [S], seq 0, win 8192, length 0
+23:57:14.755685 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:14.802650 IP 10.0.1.1.55000 > 10.0.1.2.8080: Flags [S], seq 0, win 8192, length 0
+23:57:14.864307 IP 10.0.1.1.55000 > 10.0.1.2.8080: Flags [S], seq 0, win 8192, length 0
+23:57:14.908682 IP 10.0.1.1.55000 > 10.0.1.2.8080: Flags [S], seq 0, win 8192, length 0
+23:57:14.944561 IP 10.0.1.1.55000 > 10.0.1.2.8080: Flags [S], seq 0, win 8192, length 0
+23:57:15.767417 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:15.998994 IP 10.0.1.1 > 10.0.1.2: ICMP echo request, id 0, seq 0, length 8
+23:57:16.042227 IP 10.0.1.1 > 10.0.1.2: ICMP echo request, id 0, seq 0, length 8
+23:57:16.128545 IP 10.0.1.1 > 10.0.1.2: ICMP echo request, id 0, seq 0, length 8
+23:57:16.164836 IP 10.0.1.1 > 10.0.1.2: ICMP echo request, id 0, seq 0, length 8
+23:57:16.209311 IP 10.0.1.1 > 10.0.1.2: ICMP echo request, id 0, seq 0, length 8
+23:57:16.793169 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:17.572754 IP 10.0.1.1.60526 > 10.0.1.2.15454: Flags [S], seq 0, win 8192, length 0
+23:57:17.820891 IP 10.0.1.1.2905 > 10.0.1.2.19322: Flags [S], seq 0, win 8192, length 0
+23:57:17.820969 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:18.845340 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+23:57:19.863278 ARP, Request who-has 10.0.1.1 tell 10.0.1.2, length 28
+
+
+
+______________ H3 ______________
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# tcpdump -i eth0 -n not ip6
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+23:57:11.101445 IP 10.0.1.1.10000 > 10.0.1.2.100: Flags [S], seq 0, win 8192, length 0
+23:57:11.144417 IP 10.0.1.1.10000 > 10.0.1.2.100: Flags [S], seq 0, win 8192, length 0
+23:57:11.183814 IP 10.0.1.1.10000 > 10.0.1.2.100: Flags [S], seq 0, win 8192, length 0
+23:57:11.220723 IP 10.0.1.1.10000 > 10.0.1.2.100: Flags [S], seq 0, win 8192, length 0
+23:57:11.260871 IP 10.0.1.1.10000 > 10.0.1.2.100: Flags [S], seq 0, win 8192, length 0
+23:57:13.525356 IP 10.0.1.1.62000 > 10.0.1.2.80: Flags [S], seq 0, win 8192, length 0
+23:57:13.560837 IP 10.0.1.1.62000 > 10.0.1.2.80: Flags [S], seq 0, win 8192, length 0
+23:57:13.604270 IP 10.0.1.1.62000 > 10.0.1.2.80: Flags [S], seq 0, win 8192, length 0
+23:57:13.648172 IP 10.0.1.1.62000 > 10.0.1.2.80: Flags [S], seq 0, win 8192, length 0
+23:57:13.701505 IP 10.0.1.1.62000 > 10.0.1.2.80: Flags [S], seq 0, win 8192, length 0
+23:57:17.300604 IP 10.0.1.1.64378 > 10.0.1.2.54725: Flags [S], seq 0, win 8192, length 0
+23:57:17.440609 IP 10.0.1.1.61164 > 10.0.1.2.56302: Flags [S], seq 0, win 8192, length 0
+23:57:17.888557 IP 10.0.1.1.61893 > 10.0.1.2.38532: Flags [S], seq 0, win 8192, length 0
+23:57:17.936815 IP 10.0.1.1.63050 > 10.0.1.2.9874: Flags [S], seq 0, win 8192, length 0
+
+
+
+______________ H4 ______________
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/dt# tcpdump -i eth0 -n not ip6
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+23:57:12.320968 IP 10.0.1.1.10000 > 10.0.1.2.5000: Flags [S], seq 0, win 8192, length 0
+23:57:12.368161 IP 10.0.1.1.10000 > 10.0.1.2.5000: Flags [S], seq 0, win 8192, length 0
+23:57:12.399985 IP 10.0.1.1.10000 > 10.0.1.2.5000: Flags [S], seq 0, win 8192, length 0
+23:57:12.423921 IP 10.0.1.1.10000 > 10.0.1.2.5000: Flags [S], seq 0, win 8192, length 0
+23:57:12.472676 IP 10.0.1.1.10000 > 10.0.1.2.5000: Flags [S], seq 0, win 8192, length 0
+23:57:17.263683 IP 10.0.1.1.40990 > 10.0.1.2.31771: Flags [S], seq 0, win 8192, length 0
+23:57:17.340731 IP 10.0.1.1.42359 > 10.0.1.2.54609: Flags [S], seq 0, win 8192, length 0
+23:57:17.394090 IP 10.0.1.1.17830 > 10.0.1.2.5669: Flags [S], seq 0, win 8192, length 0
+23:57:17.505251 IP 10.0.1.1.39660 > 10.0.1.2.31764: Flags [S], seq 0, win 8192, length 0
+23:57:17.539751 IP 10.0.1.1.26409 > 10.0.1.2.31145: Flags [S], seq 0, win 8192, length 0
+23:57:17.608138 IP 10.0.1.1.30504 > 10.0.1.2.10278: Flags [S], seq 0, win 8192, length 0
+23:57:17.644565 IP 10.0.1.1.40131 > 10.0.1.2.6697: Flags [S], seq 0, win 8192, length 0
+23:57:17.680305 IP 10.0.1.1.20549 > 10.0.1.2.57032: Flags [S], seq 0, win 8192, length 0
+23:57:17.702232 IP 10.0.1.1.29774 > 10.0.1.2.17444: Flags [S], seq 0, win 8192, length 0
+23:57:17.755981 IP 10.0.1.1.46910 > 10.0.1.2.44230: Flags [S], seq 0, win 8192, length 0
+23:57:17.972626 IP 10.0.1.1.46345 > 10.0.1.2.41022: Flags [S], seq 0, win 8192, length 0
+23:57:18.016227 IP 10.0.1.1.38458 > 10.0.1.2.18387: Flags [S], seq 0, win 8192, length 0
+23:57:18.056037 IP 10.0.1.1.15228 > 10.0.1.2.54645: Flags [S], seq 0, win 8192, length 0
+23:57:18.103514 IP 10.0.1.1.39275 > 10.0.1.2.61597: Flags [S], seq 0, win 8192, length 0
