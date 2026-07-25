@@ -1,6 +1,3 @@
-# s2-commands.txt - RL exercise (SYN Flood mitigation, server-side switch s2)
-# s2: port1=h3(10.0.6.1) port2=s1/clients
-# Usage: simple_switch_CLI --thrift-port 9091 < s2-commands.txt
 table_add MyIngress.ip_forward MyIngress.forward 10.0.6.1 => 1 08:00:00:00:06:01
 table_add MyIngress.ip_forward MyIngress.forward 10.0.1.1  => 2 08:00:00:00:01:01
 table_add MyIngress.ip_forward MyIngress.forward 10.0.1.82 => 2 08:00:00:00:01:52
