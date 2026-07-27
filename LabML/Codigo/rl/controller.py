@@ -267,10 +267,11 @@ def run_rl_agent(thrift_port: int, interval: float, episodes: int) -> None:
         print(f"[E{episode:03d}] SYN={syn_before} SYN-ACK={synack_before} "
               f"state={state} ε={agent.epsilon:.2f}")
 
-        # ── Paso 3: si no hay ataque, esperar ─────────────────────────────────
+        # ── Paso 3: si no hay ataque, esperar y resetear ─────────────────────
         if state == 0:
             print(f"[E{episode:03d}] Sin ataque detectado. Esperando...")
             time.sleep(interval)
+            reset_registers(thrift_port)   # reset para que el next episode vea solo el último intervalo
             continue
 
         # ── Paso 4: elegir acción ─────────────────────────────────────────────

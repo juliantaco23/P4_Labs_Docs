@@ -246,12 +246,15 @@ def ratio_to_state(syn_count: int, synack_count: int) -> int:
         Lógica sugerida:
           - Si synack_count == 0 y syn_count > 0 → estado máximo (12).
           - Si synack_count == 0 y syn_count == 0 → estado 0 (sin tráfico).
-          - Si ratio = syn/synack:
-              - ratio < 1   → estado 0
-              - ratio 1-2   → estado 1
-              - ratio 2-3   → estado 2
-              - ...
-              - ratio > 12  → estado 12
+          - Si syn_count <= synack_count → estado 0 (tráfico normal o legítimo).
+          - Si syn_count > synack_count → hay exceso de SYN (ataque).
+              Discretizar el exceso: state = min((syn - synack) // 10 + 1, 12)
+
+        Por qué exceso y no ratio directo:
+          En Mininet, h3 responde a cada SYN con RST+ACK (puerto 80 cerrado).
+          Esto hace que syn/synack → 1.0 incluso durante el ataque.
+          Usar el exceso (syn - synack) detecta el ataque cuando los RSTs no
+          pueden absorber el volumen del SYN flood.
 
         Retorna: int en [0, 12].
     ────────────────────────────────────────────────────────────────────
@@ -260,6 +263,9 @@ def ratio_to_state(syn_count: int, synack_count: int) -> int:
     if synack_count == 0:
         return 12 if syn_count > 0 else 0
 
-    ratio = syn_count / synack_count
-    state = int(min(ratio, 12))
-    return state
+    if syn_count <= synack_count:
+        return 0   # tráfico normal: SYN-ACK/RST absorbe todos los SYNs
+
+    # Exceso de SYN sobre SYNACK → ataque detectado
+    excess = syn_count - synack_count
+    return min(int(excess / 10) + 1, 12)

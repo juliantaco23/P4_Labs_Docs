@@ -107,96 +107,147 @@ En la adaptación, toda la lógica del agente está en 2 archivos claros:
 
 ## Pasos de validación
 
-### Compilación
+> **Aclaración de roles — dos ejecuciones distintas:**
+>
+> | Fase | Qué valida | Controller corre | Objetivo |
+> |---|---|---|---|
+> | **Test de bloqueo** | La tabla `firewall` del switch P4 bloquea/desbloquea correctamente | ❌ No | Verificar infraestructura P4 |
+> | **Escenario completo** | El agente RL aprende la política correcta | ✅ Sí | Ejecutar el aprendizaje |
+>
+> El test de bloqueo es un **sanity check** de que el switch reacciona correctamente
+> a reglas manuales. Solo después de verificarlo tiene sentido entrenar el agente.
+
+### Paso 1 — Compilación
 ```bash
 cd P4_Labs_Docs/LabML/Codigo/rl
 mkdir -p p4src/build
 p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/syn_flood_rl.p4
-# Esperar: sin errores de compilación.
 ```
+Esperar: sin errores.
 
-### Topología
+### Paso 2 — Topología
 ```bash
 sudo python3 mininet/topo.py
-# Esperar: prompt mininet> con 2 switches y 4 hosts.
 ```
+Esperar: prompt `mininet>` con s1 (thrift 9090), s2 (thrift 9091), h1–h4.
 
-### Reglas de forwarding
+### Paso 3 — Reglas de forwarding
 ```bash
 simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 simple_switch_CLI --thrift-port 9091 < s2-commands.txt
-# Esperar: 4 confirmaciones table_add para s1, 3 para s2 (sin DUPLICATE_ENTRY).
-# IMPORTANTE: s1-commands.txt y s2-commands.txt no deben tener líneas en blanco
-# entre comandos — simple_switch_CLI repite el último comando en cada línea vacía.
 ```
+Esperar: 4 handles en s1, 3 handles en s2, sin DUPLICATE_ENTRY.
 
-### Verificación de forwarding
-
-Con las reglas correctas, el forwarding funciona con `ping` (la topología configura
-ARP estático y rutas via `configure_hosts()`):
-
+### Paso 4 — Verificación de forwarding
 ```
 mininet> h1 ping -c3 10.0.6.1
 ```
-Esperar: 3 respuestas ICMP con TTL=62 (decrementado por s1 y s2). Si no hay
-respuesta, verificar que ambas reglas (s1 y s2) se instalaron correctamente.
+Esperar: 3 respuestas ICMP con TTL=62. Si falla, las reglas de forwarding están mal.
 
-### Test de lectura de registros
+### Paso 5 — Configurar h3 para suprimir RST (REQUERIDO)
+
+En Mininet, el kernel de h3 responde a cada SYN con RST+ACK porque el puerto 80 no
+está abierto. Esto hace que `synAckRstReg ≈ synReg` siempre, impidiendo la detección.
+Suprimir el RST permite que el ratio SYN/SYNACK crezca durante el ataque:
+
+```
+mininet> h3 iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
+```
+
+> **¿Por qué esto es necesario?**
+> Sin esta regla: 1 SYN → 1 RST+ACK (h3) + 1 ACK (send_legit) = 2 SYNACK.
+> Con 200 pps de ataque: syn_delta=204, synack_delta=204 → excess=0 → state=0 siempre.
+> Con RST suprimido: syn_delta=204, synack_delta=4 (solo ACK legítimo) → excess=200 → state=12.
+
+### Paso 6 — Test de bloqueo (sin controller — verifica P4)
+
+Este paso verifica que la tabla `firewall` funciona antes de confiarle el control al agente.
+
+```
+# Abrir monitor en h3:
+mininet> xterm h3
+```
+En el xterm de h3: `tcpdump -i eth0 -n not ip6`
+
+```
+# Iniciar tráfico legítimo (background):
+mininet> h1 python3 send_legit.py &
+```
+Verificar en h3: aparecen paquetes de `10.0.1.1`.
+
+```
+# Instalar regla de bloqueo manualmente:
+simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.firewall MyIngress.block 10.0.1.64/26 => 1"
+```
+Esperar: `Entry has been added with handle 0`
+
+```
+# Iniciar ataque desde h2 (¡SIEMPRE H2, NUNCA H1!):
+mininet> h2 python3 send_attack.py --pps 50 --duration 30 &
+```
+Verificar en h3 tcpdump: **NO llegan paquetes de 10.0.1.82, los de 10.0.1.1 siguen llegando**.
+
+```
+# Limpiar:
+simple_switch_CLI --thrift-port 9090 <<< "table_delete MyIngress.firewall 0"
+mininet> h1 kill %2   # detener send_attack
+```
+
+### Paso 7 — Test de lectura de registros
 ```bash
 simple_switch_CLI --thrift-port 9090 <<< "register_read MyIngress.synReg 1"
-# Esperar: MyIngress.synReg[1]= 0  (cero al inicio)
 ```
+Esperar: `MyIngress.synReg[1]= 0` (o valor acumulado si el tráfico lleva tiempo corriendo).
 
-### Test de instalación de regla firewall manual
-```bash
-simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.firewall MyIngress.block 10.0.1.64/26 => 1"
-# Esperar: "table_add ... ok (handle 0)" o similar
-```
+### Paso 8 — Escenario completo con RL (con controller)
 
-### Test de bloqueo
-```
-# Lanzar ataque desde h2 (en background)
-mininet> h2 python3 send_attack.py --pps 50 --duration 20 &
-
-# En h3 (xterm): debería NO ver paquetes de 10.0.1.82
-mininet> h1 python3 send_legit.py &
-# En h3: los paquetes de h1 (10.0.1.1) siguen llegando (subred diferente)
-```
-Esperar: h3 ve paquetes de `10.0.1.1` pero ninguno de `10.0.1.82` ✅
-
-### Eliminar regla de prueba
-```bash
-simple_switch_CLI --thrift-port 9090 <<< "table_delete MyIngress.firewall 0"
-```
-
-### Escenario completo con RL
-
-> **Dónde correr cada componente**:
-> - Dentro de Mininet (`mininet>` prompt): `send_attack.py` y `send_legit.py`
-> - En una terminal separada del HOST (fuera de Mininet): `controller.py`
->   El controlador llama a `simple_switch_CLI` via subprocess; esto requiere
->   que el binario esté en el PATH del host y acceso al puerto Thrift (localhost:9090).
->   NO correr `controller.py` dentro del prompt de Mininet.
+> **Dónde corre cada componente:**
+> - `send_legit.py` y `send_attack.py`: dentro de Mininet (`mininet>` prompt)
+> - `controller.py`: en una **terminal del HOST** (fuera de Mininet)
+>   El controlador llama a `simple_switch_CLI` via subprocess; debe correr en el
+>   namespace del host donde `simple_switch_CLI` tiene acceso al socket Thrift.
 
 ```
-# Terminal 1 (Mininet):
-sudo python3 mininet/topo.py
-
-# Terminal 2 (reglas — en el host, fuera de Mininet):
-simple_switch_CLI --thrift-port 9090 < s1-commands.txt
-simple_switch_CLI --thrift-port 9091 < s2-commands.txt
-
-# Terminal 3 (agente RL — en el host, fuera de Mininet):
+# Terminal HOST (fuera de Mininet):
 python3 controller.py --interval 2 --episodes 100
 
-# De vuelta en Mininet (Terminal 1):
+# En Mininet (IMPORTANTE: ataque desde h2, no h1):
+mininet> h2 python3 send_attack.py --pps 50 &
 mininet> h1 python3 send_legit.py &
-mininet> h2 python3 send_attack.py &
 ```
 
-**Indicador de éxito**: El agente imprime `*** Ataque MITIGADO ***` cuando detecta
-que el estado vuelve a 0 con reward positivo. La Q-table final debe mostrar valores
-altos para acción 1 (block_attacker) en estados ≥ 1.
+**Comportamiento esperado por episodio:**
+
+Sin ataque detectado (state=0):
+```
+[E000] SYN=0 SYN-ACK=0 state=0 ε=0.40
+[E000] Sin ataque detectado. Esperando...
+[CTRL] Registers reset.
+```
+
+Con ataque activo (state>0):
+```
+[E005] SYN=104 SYN-ACK=4 state=10 ε=0.40
+[E005] → Acción 1: block_attacker
+[FW] BLOCKED 10.0.1.64/26 (handle 0)
+[CTRL] Registers reset.
+[E005] SYN_after=4 SYN-ACK_after=4 next_state=0 reward=+15.0
+[E005] Q(10,1) actualizado → 3.0500
+```
+
+**Indicadores de éxito tras 50+ episodios:**
+- `state` cambia entre 0 (sin ataque) y valores altos (con ataque)
+- `reward=+15.0` cuando el agente bloquea correctamente
+- `Q(estado, 1=block_attacker)` crece con cada reward positivo
+- `ε` decrece de 0.40 hacia 0.05 (cada 20 acciones tomadas)
+- Finalmente: `*** Ataque MITIGADO ***`
+
+**Q-table al final (si el entrenamiento funcionó):**
+```
+  State |  block_all  block_attacker  no_action  block_both
+      8 |    -5.xxxx        12.xxxx     -2.xxxx     -3.xxxx  ← block_attacker claramente mayor
+```
+Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → revisar bugs.
 
 ---
 
@@ -204,15 +255,18 @@ altos para acción 1 (block_attacker) en estados ≥ 1.
 
 | Problema | Causa probable | Solución |
 |---|---|---|
-| `register_read` retorna 0 siempre | No hay paquetes llegando al switch | Verificar forwarding rules y que send_attack.py corre en h2 |
-| `table_add firewall` falla | La tabla tiene `default_action = NoAction()` — puede requerir que la entrada sea única | Verificar que no hay otra regla LPM que solape |
-| Agente siempre elige acción aleatoria | epsilon = 0.4 al inicio — normal. Esperar ≥ 20 episodios para el decaimiento | Es el comportamiento esperado al inicio |
-| h1 también queda bloqueado | El agente eligió acción 0 (block_all) | La Q-table aprenderá que eso es incorrecto (reward -10) |
-| BMv2 no actualiza registros entre resets | `register_reset` puede tardar un ciclo | Añadir `time.sleep(0.5)` después del reset |
-| `DUPLICATE_ENTRY` al instalar reglas | Líneas en blanco en s1-commands.txt/s2-commands.txt | Ya corregido: los archivos no tienen líneas vacías entre comandos |
-| `Invalid Syntax` al cargar comandos | Caracteres Unicode en comentarios (`─`) | Ya corregido: comentarios usan solo ASCII |
-| Ningún paquete llega a h3 (0 counters) | Puertos incorrectos en s1/s2-commands.txt | Bug conocido: topo.py agrega links en orden h1, h2, **h4**, s2, h3; por lo tanto s1:port3=h4, s1:port4=s2, s2:port1=s1, s2:port2=h3. Archivos ya corregidos. |
-| `controller.py` no puede conectar al switch | Se corre dentro de Mininet (namespace de host) | Correr `controller.py` en una terminal del HOST, fuera del prompt `mininet>` |
+| `state` siempre 0, Q-table no aprende | Registros nunca se reinician en episodios state=0; la historia acumulada diluye el ataque | Ya corregido: `reset_registers()` al final de cada episodio, incluidos state=0 |
+| `state` siempre 0 aunque ataque corre | El kernel de h3 responde a cada SYN con RST+ACK, igualando el conteo SYN y SYNACK | Añadir `mininet> h3 iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP` |
+| Ataque no tiene efecto sobre los registros | Se ejecutó `h1 python3 send_attack.py` en lugar de `h2 python3 send_attack.py` | El ataque SIEMPRE debe correr desde h2; el firewall bloquea por IP fuente |
+| `register_read` retorna 0 siempre | No hay paquetes llegando al switch; forwarding rules no instaladas o fallo de compilación | Verificar forwarding y que los paquetes se envíen con sendp (Layer 2) |
+| `epsilon` no cambia (se queda en 0.40) | `decay_epsilon()` solo incrementa `step_count` cuando hay acciones; si state=0 siempre, no hay acciones | Es síntoma del bug de registros; se resuelve con el fix de reset |
+| Q-table final con valores cerca de 0 (−0.05 a +0.05) | Sin episodios con state>0, la Q-table es la inicialización aleatoria sin ningún aprendizaje | Confirmar que state>0 se detecta correctamente antes de entrenar |
+| `table_add firewall` falla | Ya existe una regla LPM solapada, o el handle no fue liberado de una ejecución anterior | `table_delete MyIngress.firewall <handle>` o reiniciar switch |
+| h1 también queda bloqueado | El agente eligió acción 0 (block_all) | La Q-table aprenderá que eso es incorrecto (reward -10); normal al inicio |
+| BMv2 no actualiza registros entre resets | `register_reset` puede tardar un ciclo | Ya hay `time.sleep(interval)` después del reset en el controlador |
+| `DUPLICATE_ENTRY` al instalar reglas | Líneas en blanco en los s-commands.txt | Ya corregido: los archivos no tienen líneas vacías |
+| Ningún paquete llega a h3 (forwarding falla) | Puertos invertidos en s1/s2-commands.txt | Ya corregido; orden correcto: s1→h1(1) h2(2) h4(3) s2(4); s2→s1(1) h3(2) |
+| `controller.py` no conecta al switch | Se corre dentro del namespace de Mininet | Correr en terminal del HOST, fuera del prompt `mininet>` |
 
 ---
 
