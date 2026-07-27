@@ -280,7 +280,7 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 | h1 también queda bloqueado | El agente eligió acción 0 (block_all) | La Q-table aprenderá que eso es incorrecto (reward -10); normal al inicio |
 | BMv2 no actualiza registros entre resets | `register_reset` puede tardar un ciclo | Ya hay `time.sleep(interval)` después del reset en el controlador |
 | `ping: connect: Network is unreachable` | `configure_hosts()` usa nexthop `10.0.1.254` que está fuera del /26 de h1/h2; kernels modernos rechazan la ruta sin `onlink` | Ya corregido: se agregó `onlink` a ambos `ip route add` en topo.py |
-| send_attack no llega a h3 (h2 invisible en tcpdump) | `sendpfast` falla (sin tcpreplay) y el fallback usaba `send()` (L3), que consulta la tabla de ruteo; h2 también carece de ruta a 10.0.6.1 | Ya corregido: fallback cambiado a `sendp()` (L2, bypasea routing) |
+| send_attack no llega a h3 (h2 invisible en tcpdump) | Scapy ≥2.4.x captura `FileNotFoundError` de tcpreplay internamente, imprime el traceback pero retorna sin relanzar → nuestro `except` nunca ejecuta, fallback nunca corre; `sendpfast` depende de `tcpreplay` que no está instalado | Ya corregido: `send_attack.py` reescrito sin `sendpfast`; usa `sendp()` directamente en loop con control de tasa |
 | Después de quitar firewall, h2 sigue sin aparecer | El ataque ya terminó (duration=30s) antes de quitar la regla; el test instaló el firewall antes de iniciar el ataque | Cambio en el procedimiento: iniciar h1 y h2 sin firewall, verificar ambos, luego instalar la regla |
 
 ---

