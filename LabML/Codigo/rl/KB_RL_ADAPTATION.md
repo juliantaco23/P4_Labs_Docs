@@ -130,22 +130,16 @@ simple_switch_CLI --thrift-port 9091 < s2-commands.txt
 # entre comandos — simple_switch_CLI repite el último comando en cada línea vacía.
 ```
 
-### Verificación de forwarding (sin firewall)
+### Verificación de forwarding
 
-> **No usar `ping`**: el switch P4 descarta los paquetes ARP (sin tabla ARP),
-> y h1/h3 están en subredes distintas (/26 vs /24) sin gateway configurado.
-> Usar sendp/tcpdump en su lugar.
+Con las reglas correctas, el forwarding funciona con `ping` (la topología configura
+ARP estático y rutas via `configure_hosts()`):
 
 ```
-mininet> xterm h3
-# En h3:
-tcpdump -i eth0 -n not ip6
-
-# En Mininet:
-mininet> h1 python3 send_legit.py &
+mininet> h1 ping -c3 10.0.6.1
 ```
-Esperar en h3: paquetes `10.0.1.1.XXXXX > 10.0.6.1.80` llegando ~2/s (SYN + ACK).
-Confirma que h1→h3 funciona con las reglas de forwarding activas.
+Esperar: 3 respuestas ICMP con TTL=62 (decrementado por s1 y s2). Si no hay
+respuesta, verificar que ambas reglas (s1 y s2) se instalaron correctamente.
 
 ### Test de lectura de registros
 ```bash
@@ -176,18 +170,26 @@ simple_switch_CLI --thrift-port 9090 <<< "table_delete MyIngress.firewall 0"
 ```
 
 ### Escenario completo con RL
+
+> **Dónde correr cada componente**:
+> - Dentro de Mininet (`mininet>` prompt): `send_attack.py` y `send_legit.py`
+> - En una terminal separada del HOST (fuera de Mininet): `controller.py`
+>   El controlador llama a `simple_switch_CLI` via subprocess; esto requiere
+>   que el binario esté en el PATH del host y acceso al puerto Thrift (localhost:9090).
+>   NO correr `controller.py` dentro del prompt de Mininet.
+
 ```
 # Terminal 1 (Mininet):
 sudo python3 mininet/topo.py
 
-# Terminal 2 (reglas):
+# Terminal 2 (reglas — en el host, fuera de Mininet):
 simple_switch_CLI --thrift-port 9090 < s1-commands.txt
 simple_switch_CLI --thrift-port 9091 < s2-commands.txt
 
-# Terminal 3 (agente RL):
+# Terminal 3 (agente RL — en el host, fuera de Mininet):
 python3 controller.py --interval 2 --episodes 100
 
-# En Mininet:
+# De vuelta en Mininet (Terminal 1):
 mininet> h1 python3 send_legit.py &
 mininet> h2 python3 send_attack.py &
 ```
@@ -209,7 +211,8 @@ altos para acción 1 (block_attacker) en estados ≥ 1.
 | BMv2 no actualiza registros entre resets | `register_reset` puede tardar un ciclo | Añadir `time.sleep(0.5)` después del reset |
 | `DUPLICATE_ENTRY` al instalar reglas | Líneas en blanco en s1-commands.txt/s2-commands.txt | Ya corregido: los archivos no tienen líneas vacías entre comandos |
 | `Invalid Syntax` al cargar comandos | Caracteres Unicode en comentarios (`─`) | Ya corregido: comentarios usan solo ASCII |
-| `ping h3` no funciona desde h1 | Switch descarta ARP; subredes distintas sin gateway | Usar `send_legit.py` + tcpdump para verificar conectividad (no ping) |
+| Ningún paquete llega a h3 (0 counters) | Puertos incorrectos en s1/s2-commands.txt | Bug conocido: topo.py agrega links en orden h1, h2, **h4**, s2, h3; por lo tanto s1:port3=h4, s1:port4=s2, s2:port1=s1, s2:port2=h3. Archivos ya corregidos. |
+| `controller.py` no puede conectar al switch | Se corre dentro de Mininet (namespace de host) | Correr `controller.py` en una terminal del HOST, fuera del prompt `mininet>` |
 
 ---
 

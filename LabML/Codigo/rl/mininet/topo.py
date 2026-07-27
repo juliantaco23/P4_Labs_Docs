@@ -86,14 +86,13 @@ class SynFloodTopo(Topo):
                            ip='10.0.4.1/24',
                            mac='08:00:00:00:04:01')
 
-        # Links s1
-        self.addLink(s1, h1)             # s1:port1
-        self.addLink(s1, h2)             # s1:port2
-        self.addLink(s1, h4)             # s1:port4 (monitoreo)
-        # Link inter-switch
-        self.addLink(s1, s2)             # s1:port3 ↔ s2:port2
+        # Links s1 — port assigned in addLink order (1-indexed)
+        self.addLink(s1, h1)   # s1:port1
+        self.addLink(s1, h2)   # s1:port2
+        self.addLink(s1, h4)   # s1:port3  (monitoring host)
+        self.addLink(s1, s2)   # s1:port4 <-> s2:port1  (inter-switch)
         # Links s2
-        self.addLink(s2, h3)             # s2:port1
+        self.addLink(s2, h3)   # s2:port2  (server host)
 
 
 def configure_hosts(net):
