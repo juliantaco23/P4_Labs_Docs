@@ -36,6 +36,7 @@ import re
 import subprocess
 import sys
 import time
+from typing import Dict
 
 import numpy as np
 
@@ -135,7 +136,7 @@ def reset_registers(thrift_port: int = DEFAULT_THRIFT_PORT) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Rastrea los handles de las entradas de firewall instaladas (para poder borrarlas)
-_firewall_handles: dict[str, int] = {}
+_firewall_handles: Dict[str, int] = {}
 
 
 def block_subnet(subnet_cidr: str, thrift_port: int = DEFAULT_THRIFT_PORT) -> None:
