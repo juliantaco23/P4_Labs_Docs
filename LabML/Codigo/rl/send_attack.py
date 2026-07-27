@@ -47,9 +47,10 @@ def main():
         sendpfast(pkts, pps=args.pps, loop=max(1, args.duration // 10), iface=iface)
     except Exception as e:
         print(f"[ATTACK ERROR] {e}")
-        # Fallback a send() si sendpfast no está disponible
+        print("[ATTACK] Fallback: sending via sendp() (Layer 2, bypasses routing)")
+        # Fallback a sendp() — send() falla porque h2 no tiene ruta a 10.0.6.1
         for pkt in pkts[:args.pps]:
-            send(pkt, iface=iface, verbose=False)
+            sendp(pkt, iface=iface, verbose=False)
 
 
 if __name__ == '__main__':

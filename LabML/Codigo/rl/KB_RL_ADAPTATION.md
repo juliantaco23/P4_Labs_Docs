@@ -161,7 +161,8 @@ mininet> h3 iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
 ### Paso 6 — Test de bloqueo (sin controller — verifica P4)
 
-Este paso verifica que la tabla `firewall` funciona antes de confiarle el control al agente.
+Este paso verifica que la tabla `firewall` bloquea h2 sin afectar a h1.
+**Secuencia correcta: primero ver ambos, luego instalar la regla.**
 
 ```
 # Abrir monitor en h3:
@@ -170,27 +171,41 @@ mininet> xterm h3
 En el xterm de h3: `tcpdump -i eth0 -n not ip6`
 
 ```
-# Iniciar tráfico legítimo (background):
+# Iniciar tráfico legítimo h1 (background) con duración larga:
 mininet> h1 python3 send_legit.py &
+
+# Iniciar ataque h2 (background) con larga duración:
+mininet> h2 python3 send_attack.py --pps 50 --duration 120 &
 ```
-Verificar en h3: aparecen paquetes de `10.0.1.1`.
+
+Verificar en h3 tcpdump — deben aparecer **DOS** tipos de paquetes:
+```
+10.0.1.1.XXXXX > 10.0.6.1.80   ← tráfico legítimo de h1 ✅
+10.0.1.82.XXXXX > 10.0.6.1.80  ← ataque de h2 ✅ (sin firewall, ambos llegan)
+```
 
 ```
-# Instalar regla de bloqueo manualmente:
+# AHORA instalar la regla de bloqueo:
 simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.firewall MyIngress.block 10.0.1.64/26 => 1"
 ```
 Esperar: `Entry has been added with handle 0`
 
+Verificar en h3 tcpdump después de instalar la regla:
 ```
-# Iniciar ataque desde h2 (¡SIEMPRE H2, NUNCA H1!):
-mininet> h2 python3 send_attack.py --pps 50 --duration 30 &
+10.0.1.1.XXXXX > 10.0.6.1.80   ← tráfico legítimo de h1 SIGUE ✅
+# ya no aparecen paquetes de 10.0.1.82  ← bloqueado ✅
 ```
-Verificar en h3 tcpdump: **NO llegan paquetes de 10.0.1.82, los de 10.0.1.1 siguen llegando**.
 
 ```
-# Limpiar:
+# Quitar la regla y verificar que h2 vuelve a aparecer:
 simple_switch_CLI --thrift-port 9090 <<< "table_delete MyIngress.firewall 0"
-mininet> h1 kill %2   # detener send_attack
+```
+Verificar: 10.0.1.82 vuelve a aparecer en tcpdump ✅
+
+```
+# Limpiar procesos background antes del escenario RL:
+mininet> h1 kill %1   # detener send_legit
+mininet> h2 kill %2   # detener send_attack (o esperar que termine si --duration 120)
 ```
 
 ### Paso 7 — Test de lectura de registros
@@ -264,9 +279,9 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 | `table_add firewall` falla | Ya existe una regla LPM solapada, o el handle no fue liberado de una ejecución anterior | `table_delete MyIngress.firewall <handle>` o reiniciar switch |
 | h1 también queda bloqueado | El agente eligió acción 0 (block_all) | La Q-table aprenderá que eso es incorrecto (reward -10); normal al inicio |
 | BMv2 no actualiza registros entre resets | `register_reset` puede tardar un ciclo | Ya hay `time.sleep(interval)` después del reset en el controlador |
-| `DUPLICATE_ENTRY` al instalar reglas | Líneas en blanco en los s-commands.txt | Ya corregido: los archivos no tienen líneas vacías |
-| Ningún paquete llega a h3 (forwarding falla) | Puertos invertidos en s1/s2-commands.txt | Ya corregido; orden correcto: s1→h1(1) h2(2) h4(3) s2(4); s2→s1(1) h3(2) |
-| `controller.py` no conecta al switch | Se corre dentro del namespace de Mininet | Correr en terminal del HOST, fuera del prompt `mininet>` |
+| `ping: connect: Network is unreachable` | `configure_hosts()` usa nexthop `10.0.1.254` que está fuera del /26 de h1/h2; kernels modernos rechazan la ruta sin `onlink` | Ya corregido: se agregó `onlink` a ambos `ip route add` en topo.py |
+| send_attack no llega a h3 (h2 invisible en tcpdump) | `sendpfast` falla (sin tcpreplay) y el fallback usaba `send()` (L3), que consulta la tabla de ruteo; h2 también carece de ruta a 10.0.6.1 | Ya corregido: fallback cambiado a `sendp()` (L2, bypasea routing) |
+| Después de quitar firewall, h2 sigue sin aparecer | El ataque ya terminó (duration=30s) antes de quitar la regla; el test instaló el firewall antes de iniciar el ataque | Cambio en el procedimiento: iniciar h1 y h2 sin firewall, verificar ambos, luego instalar la regla |
 
 ---
 

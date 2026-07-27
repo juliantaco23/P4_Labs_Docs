@@ -98,14 +98,17 @@ class SynFloodTopo(Topo):
 def configure_hosts(net):
     """Configurar rutas estáticas en los hosts."""
     # h1 y h2 usan s1 como gateway para 10.0.6.0/24
+    # El flag 'onlink' es necesario porque 10.0.1.254 está fuera del /26 de h1/h2;
+    # sin él el kernel rechaza silenciosamente la ruta en kernels modernos.
     for hname in ('h1', 'h2'):
         h = net.get(hname)
-        h.cmd('ip route add 10.0.6.0/24 via 10.0.1.254 dev eth0 2>/dev/null || true')
+        h.cmd('ip route add 10.0.6.0/24 via 10.0.1.254 dev eth0 onlink 2>/dev/null || true')
         h.cmd('arp -i eth0 -s 10.0.1.254 08:00:00:00:01:00')
 
     # h3 (servidor) usa s2 como gateway hacia 10.0.1.0/25
+    # 10.0.6.254 está dentro del /24 de h3, onlink no es estrictamente necesario.
     h3 = net.get('h3')
-    h3.cmd('ip route add 10.0.1.0/25 via 10.0.6.254 dev eth0 2>/dev/null || true')
+    h3.cmd('ip route add 10.0.1.0/25 via 10.0.6.254 dev eth0 onlink 2>/dev/null || true')
     h3.cmd('arp -i eth0 -s 10.0.6.254 08:00:00:00:06:00')
 
 
