@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-send_attack.py — Generador de tráfico SYN Flood.
+send_attack.py — SYN Flood Traffic Generator.
 
-Simula un ataque SYN Flood desde h2 (10.0.1.82, atacante) hacia h3 (servidor).
-Usa sendp() (Layer 2) directamente — no requiere tcpreplay.
+Simulates a SYN Flood attack from h2 (10.0.1.82, attacker) to h3 (server).
+Uses sendp() (Layer 2) directly — does not require tcpreplay.
 
-Ejecutar desde Mininet en h2:
+Run from Mininet on h2:
     mininet> h2 python3 send_attack.py &
 
-O directamente:
+Or directly:
     python3 send_attack.py [--dst 10.0.6.1] [--pps 50] [--duration 60]
 """
 
@@ -19,24 +19,24 @@ from scapy.all import Ether, IP, TCP, get_if_hwaddr, sendp
 
 DEFAULT_DST      = '10.0.6.1'
 DEFAULT_DST_PORT = 80
-DEFAULT_PPS      = 50     # paquetes por segundo (aproximado — Python tiene overhead)
-DEFAULT_DURATION = 60     # segundos de ataque
+DEFAULT_PPS      = 50     # Packets per second (approximate — Python has overhead)
+DEFAULT_DURATION = 60     # Attack duration in seconds
 
 
 def main():
     parser = argparse.ArgumentParser(description='SYN Flood attack generator')
-    parser.add_argument('--dst',      default=DEFAULT_DST,      help='IP destino (servidor)')
-    parser.add_argument('--dport',    type=int, default=DEFAULT_DST_PORT, help='Puerto destino')
-    parser.add_argument('--pps',      type=int, default=DEFAULT_PPS,      help='Paquetes por segundo')
-    parser.add_argument('--duration', type=int, default=DEFAULT_DURATION,  help='Duración en segundos')
+    parser.add_argument('--dst',      default=DEFAULT_DST,      help='Destination IP (server)')
+    parser.add_argument('--dport',    type=int, default=DEFAULT_DST_PORT, help='Destination port')
+    parser.add_argument('--pps',      type=int, default=DEFAULT_PPS,      help='Packets per second (approximate)')
+    parser.add_argument('--duration', type=int, default=DEFAULT_DURATION,  help='Duration in seconds')
     args = parser.parse_args()
 
     iface   = 'eth0'
     src_mac = get_if_hwaddr(iface)
-    interval = 1.0 / max(args.pps, 1)   # segundos entre paquetes
+    interval = 1.0 / max(args.pps, 1)   # Seconds between packets
 
-    print(f"[ATTACK] SYN Flood: {args.dst}:{args.dport} a ~{args.pps} pps durante {args.duration}s")
-    print(f"[ATTACK] Interfaz: {iface}  |  Ctrl+C para detener\n")
+    print(f"[ATTACK] SYN Flood: {args.dst}:{args.dport} at ~{args.pps} pps for {args.duration}s")
+    print(f"[ATTACK] Interface: {iface}  |  Ctrl+C to stop\n")
 
     count    = 0
     end_time = time.time() + args.duration
@@ -55,7 +55,7 @@ def main():
     except KeyboardInterrupt:
         pass
 
-    print(f"\n[ATTACK] Finalizado. Enviados {count} paquetes SYN en {args.duration}s.")
+    print(f"\n[ATTACK] Finished. Sent {count} SYN packets in {args.duration}s.")
 
 
 if __name__ == '__main__':

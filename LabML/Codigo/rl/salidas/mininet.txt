@@ -1,0 +1,66 @@
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# sudo python3 mininet/topo.py
+*** Creating network
+*** Adding hosts:
+h1 h2 h3 h4 
+*** Adding switches:
+s1 s2 
+*** Adding links:
+(s1, h1) (s1, h2) (s1, h4) (s1, s2) (s2, h3) 
+*** Configuring hosts
+h1 h2 h3 h4 
+*** Starting controller
+
+*** Starting 2 switches
+s1 Starting s1 @ thrift-port 9090
+s2 Starting s2 @ thrift-port 9091
+
+
+=== Topología RL SYN Flood lista ===
+Instala las reglas en otras terminales:
+  simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+  simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+
+Luego lanza el ataque desde h2 y el agente RL desde el host.
+
+*** Starting CLI:
+mininet> h1 ping -c3 10.0.6.1
+PING 10.0.6.1 (10.0.6.1) 56(84) bytes of data.
+64 bytes from 10.0.6.1: icmp_seq=1 ttl=62 time=4.89 ms
+64 bytes from 10.0.6.1: icmp_seq=2 ttl=62 time=4.11 ms
+64 bytes from 10.0.6.1: icmp_seq=3 ttl=62 time=5.62 ms
+
+--- 10.0.6.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2005ms
+rtt min/avg/max/mdev = 4.106/4.870/5.617/0.616 ms
+mininet> h3 iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
+mininet> xterm h3
+mininet> h1 python3 send_legit.py &
+mininet> h2 python3 send_attack.py --pps 50 --duration 50 &
+mininet> h1 kill %1
+[LEGIT] Tráfico legítimo h1→h3 (10.0.6.1:80)
+[LEGIT] Envío continuo — Ctrl+C para detener
+
+mininet> h2 kill %1
+[ATTACK] SYN Flood: 10.0.6.1:80 a ~50 pps durante 50s
+[ATTACK] Interfaz: eth0  |  Ctrl+C para detener
+
+
+[ATTACK] Finalizado. Enviados 727 paquetes SYN en 50s.
+mininet> 
+
+__________________________________________________________
+WE RUN BOTH SCRIPTS AGAIN WITH THE RL CONTROLLER RUNNING IN OTHER TERMINAL
+mininet> h1 python3 send_legit.py &
+mininet> h2 python3 send_attack.py --pps 50 --duration 50 &
+mininet> h1 kill %1
+[LEGIT] Tráfico legítimo h1→h3 (10.0.6.1:80)
+[LEGIT] Envío continuo — Ctrl+C para detener
+
+bash: kill: %1: no such job
+mininet> h2 kill %1
+[ATTACK] SYN Flood: 10.0.6.1:80 a ~50 pps durante 50s
+[ATTACK] Interfaz: eth0  |  Ctrl+C para detener
+
+
+[ATTACK] Finalizado. Enviados 729 paquetes SYN en 50s.
+mininet> 

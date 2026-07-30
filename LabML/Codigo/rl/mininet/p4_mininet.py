@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 p4_mininet.py — Minimal BMv2 simple_switch class for Mininet.
-(Copia del módulo estándar del proyecto TFG.)
 """
 
 import os

@@ -1,0 +1,70 @@
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# mkdir -p p4src/build
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/syn_flood_rl.p4
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# simple_switch_CLI --thrift-port 9090 < s1-commands.txt
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to exact match table MyIngress.ip_forward
+match key:           EXACT-0a:00:01:01
+action:              MyIngress.forward
+runtime data:        00:01      08:00:00:00:01:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to exact match table MyIngress.ip_forward
+match key:           EXACT-0a:00:01:52
+action:              MyIngress.forward
+runtime data:        00:02      08:00:00:00:01:52
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to exact match table MyIngress.ip_forward
+match key:           EXACT-0a:00:04:01
+action:              MyIngress.forward
+runtime data:        00:03      08:00:00:00:04:01
+Entry has been added with handle 2
+RuntimeCmd: Adding entry to exact match table MyIngress.ip_forward
+match key:           EXACT-0a:00:06:01
+action:              MyIngress.forward
+runtime data:        00:04      08:00:00:00:06:01
+Entry has been added with handle 3
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# simple_switch_CLI --thrift-port 9091 < s2-commands.txt
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to exact match table MyIngress.ip_forward
+match key:           EXACT-0a:00:06:01
+action:              MyIngress.forward
+runtime data:        00:02      08:00:00:00:06:01
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to exact match table MyIngress.ip_forward
+match key:           EXACT-0a:00:01:01
+action:              MyIngress.forward
+runtime data:        00:01      08:00:00:00:01:01
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to exact match table MyIngress.ip_forward
+match key:           EXACT-0a:00:01:52
+action:              MyIngress.forward
+runtime data:        00:01      08:00:00:00:01:52
+Entry has been added with handle 2
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.firewall MyIngress.block 10.0.1.64/26 => 1"
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to lpm match table MyIngress.firewall
+match key:           LPM-0a:00:01:40/26
+action:              MyIngress.block
+runtime data:        01
+Entry has been added with handle 0
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# simple_switch_CLI --thrift-port 9090 <<< "table_delete MyIngress.firewall 0"
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Deleting entry 0 from MyIngress.firewall
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# simple_switch_CLI --thrift-port 9090 <<< "register_read MyIngress.synReg 1"
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: MyIngress.synReg[1]= 552
+RuntimeCmd: 
+root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# 

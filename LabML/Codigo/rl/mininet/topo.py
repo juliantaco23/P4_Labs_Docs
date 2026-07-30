@@ -1,43 +1,41 @@
 #!/usr/bin/env python3
 """
-RL SYN Flood — Topología: 2 switches, 3 hosts
+RL SYN Flood — Topology: 2 switches, 3 hosts
 
-Topología:
+Topology:
     h1 (10.0.1.1/26)   ──port1──┐               ┌──port1── h3 (10.0.6.1/24)
-    h2 (10.0.1.82/26)  ──port2──┤ s1 ──port3→2── s2
-                                 │ (thrift 9090)  (thrift 9091)
-                                 └──port4── h4 (10.0.4.1/24)  [monitoring]
+    h2 (10.0.1.82/26)  ──port2──┤ s1 ──port3→port2── s2
+                                 (thrift 9090)  (thrift 9091)
 
-Esquema de subredes:
-  - h1: 10.0.1.1  → subred 10.0.1.0/26   (cliente legítimo)
-  - h2: 10.0.1.82 → subred 10.0.1.64/26  (atacante SYN Flood)
-  - h3: 10.0.6.1  → subred 10.0.6.0/24   (servidor HTTP)
-  - h4: 10.0.4.1  → subred 10.0.4.0/24   (host de monitoreo del agente RL)
+Subnet diagram:
+  - h1: 10.0.1.1  → subnet 10.0.1.0/26   (legitimate client)
+  - h2: 10.0.1.82 → subnet 10.0.1.64/26  (SYN Flood attacker)
+  - h3: 10.0.6.1  → subnet 10.0.6.0/24   (HTTP server)
 
-El agente RL (controller.py) corre en el host donde está Mininet y se comunica
-con s1 vía simple_switch_CLI (puerto thrift 9090).
+The RL agent (controller.py) runs on the host where Mininet is located and communicates
+with s1 via simple_switch_CLI (Thrift port 9090).
 
-Acciones del agente:
-  - Acción 0: Bloquear 10.0.1.0/26  → bloquea h1 Y h2 (INCORRECTO → reward negativo)
-  - Acción 1: Bloquear 10.0.1.64/26 → bloquea solo h2  (CORRECTO  → reward positivo)
-  - Acción 2: No hacer nada (estado inicial / desbloquear)
+Agent actions:
+  - Action 0: Block 10.0.1.0/26  → blocks h1 AND h2 (INCORRECT → negative reward)
+  - Action 1: Block 10.0.1.64/26 → blocks only h2  (CORRECT  → positive reward)
+  - Action 2: Do nothing (initial state / unblock)
 
-Uso:
-  1. Compilar P4:
+Usage:
+  1. Compile P4:
        mkdir -p p4src/build
        p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/syn_flood_rl.p4
 
-  2. Ejecutar topología:
+  2. Run the topology:
        sudo python3 mininet/topo.py
 
-  3. Instalar reglas de forwarding (en otra terminal):
+  3. Install forwarding rules (in another terminal):
        simple_switch_CLI --thrift-port 9090 < s1-commands.txt
        simple_switch_CLI --thrift-port 9091 < s2-commands.txt
 
-  4. Lanzar el ataque (desde h2 en Mininet):
+  4. Launch the attack (from h2 in Mininet):
        mininet> h2 python3 send_attack.py &
 
-  5. Lanzar el agente RL (en otra terminal del host):
+  5. Launch the RL agent (in another terminal on the host):
        python3 controller.py
 """
 
@@ -81,32 +79,27 @@ class SynFloodTopo(Topo):
         h3 = self.addHost('h3', cls=P4Host,
                            ip='10.0.6.1/24',
                            mac='08:00:00:00:06:01')
-        # h4: host de monitoreo (accede a contadores del switch)
-        h4 = self.addHost('h4', cls=P4Host,
-                           ip='10.0.4.1/24',
-                           mac='08:00:00:00:04:01')
 
         # Links s1 — port assigned in addLink order (1-indexed)
         self.addLink(s1, h1)   # s1:port1
         self.addLink(s1, h2)   # s1:port2
-        self.addLink(s1, h4)   # s1:port3  (monitoring host)
         self.addLink(s1, s2)   # s1:port4 <-> s2:port1  (inter-switch)
         # Links s2
         self.addLink(s2, h3)   # s2:port2  (server host)
 
 
 def configure_hosts(net):
-    """Configurar rutas estáticas en los hosts."""
-    # h1 y h2 usan s1 como gateway para 10.0.6.0/24
-    # El flag 'onlink' es necesario porque 10.0.1.254 está fuera del /26 de h1/h2;
-    # sin él el kernel rechaza silenciosamente la ruta en kernels modernos.
+    """Configure static routes and ARP entries on the hosts."""
+    # h1 and h2 use s1 as gateway to 10.0.6.0/24
+    # The 'onlink' flag is required because 10.0.1.254 is outside h1/h2's /26 subnet;
+    # without it, the kernel silently rejects the route on modern kernels.
     for hname in ('h1', 'h2'):
         h = net.get(hname)
         h.cmd('ip route add 10.0.6.0/24 via 10.0.1.254 dev eth0 onlink 2>/dev/null || true')
         h.cmd('arp -i eth0 -s 10.0.1.254 08:00:00:00:01:00')
 
-    # h3 (servidor) usa s2 como gateway hacia 10.0.1.0/25
-    # 10.0.6.254 está dentro del /24 de h3, onlink no es estrictamente necesario.
+    # h3 (server) uses s2 as gateway toward 10.0.1.0/25
+    # 10.0.6.254 is within h3's /24 subnet, onlink is not strictly required.
     h3 = net.get('h3')
     h3.cmd('ip route add 10.0.1.0/25 via 10.0.6.254 dev eth0 onlink 2>/dev/null || true')
     h3.cmd('arp -i eth0 -s 10.0.6.254 08:00:00:00:06:00')
@@ -120,11 +113,11 @@ def main():
 
     configure_hosts(net)
 
-    print("\n=== Topología RL SYN Flood lista ===")
-    print("Instala las reglas en otras terminales:")
+    print("\n=== RL SYN Flood topology ready ===")
+    print("Install forwarding rules in other terminals:")
     print("  simple_switch_CLI --thrift-port 9090 < s1-commands.txt")
     print("  simple_switch_CLI --thrift-port 9091 < s2-commands.txt\n")
-    print("Luego lanza el ataque desde h2 y el agente RL desde el host.\n")
+    print("Then launch the attack from h2 and the RL agent from the host.\n")
 
     CLI(net)
     net.stop()

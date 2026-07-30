@@ -1,49 +1,49 @@
 #!/usr/bin/env python3
 """
-q_table.py — Implementación de Q-Learning para el ejercicio RL + P4.
+q_table.py -- Q-Learning implementation for the RL + P4 exercise.
 
-Este módulo define la tabla Q y las funciones necesarias para el algoritmo
-Q-Learning que el agente usa para aprender a mitigar un ataque SYN Flood.
+Defines the Q-table and the functions needed by the Q-Learning algorithm
+that the agent uses to learn to mitigate a SYN Flood attack.
 
-Estado del entorno:
-  El "estado" se define como el ratio SYN/SYN-ACK observado en el switch,
-  discretizado en 13 niveles (0-12):
-    - Estado 0: ratio < 1 (sin ataque)
-    - Estado 1-11: ratios crecientes (ataque moderado → severo)
-    - Estado 12: ratio muy alto (ataque masivo)
+Environment state:
+  The "state" is defined as the SYN excess (syn - synack) observed on
+  the switch, discretized into 13 levels (0-12):
+    - State 0: no excess (no attack)
+    - States 1-11: increasing excess (moderate -> severe attack)
+    - State 12: large excess or no synack (massive attack)
 
-Acciones disponibles (ACTION_SPACE):
-    0 → Bloquear subred 10.0.1.0/26  (bloquea h1 Y h2 — acción incorrecta)
-    1 → Bloquear subred 10.0.1.64/26 (bloquea SOLO h2 — acción correcta)
-    2 → No bloquear (o desbloquear)   (acción pasiva / reset)
-    3 → Bloquear ambas subredes       (bloquea todo — subóptimo)
+Available actions (ACTION_SPACE):
+    0 -> Block subnet 10.0.1.0/26  (blocks h1 AND h2 -- incorrect action)
+    1 -> Block subnet 10.0.1.64/26 (blocks ONLY h2  -- correct action)
+    2 -> No block (or unblock)      (passive action / reset)
+    3 -> Block both subnets         (blocks all -- suboptimal)
 
-Referencia: Zheng, C. et al. "QCMP: Load Balancing via In-Network
+Reference: Zheng, C. et al. "QCMP: Load Balancing via In-Network
 Reinforcement Learning". ACM SIGCOMM FIRA Workshop, 2023.
 """
 
 import numpy as np
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Espacio de estados y acciones
+# State and action space
 # ─────────────────────────────────────────────────────────────────────────────
-NUM_STATES  = 13   # Niveles de ratio SYN/SYN-ACK (0 a 12)
+NUM_STATES  = 13   # Discrete SYN-excess levels (0 to 12)
 ACTION_SPACE = ('block_all', 'block_attacker', 'no_action', 'block_both')
 
-# Subredes que corresponden a cada acción de bloqueo
+# Subnets corresponding to each blocking action
 ACTION_SUBNETS = {
-    0: '10.0.1.0/26',    # Bloquea h1 Y h2 (incorrecta)
-    1: '10.0.1.64/26',   # Bloquea SOLO h2 (correcta)
-    2: None,             # Sin bloqueo
-    3: None,             # Se usan las dos reglas anteriores
+    0: '10.0.1.0/26',    # Blocks h1 AND h2 (incorrect)
+    1: '10.0.1.64/26',   # Blocks ONLY h2   (correct)
+    2: None,             # No block
+    3: None,             # Both rules above are used
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Clase Q-Table
+# Q-Table class
 # ─────────────────────────────────────────────────────────────────────────────
 
 class QTable:
-    """Tabla Q para Q-Learning con epsilon-greedy."""
+    """Q-Table for Q-Learning with epsilon-greedy policy."""
 
     def __init__(self,
                  learning_rate: float = 0.2,
@@ -53,91 +53,73 @@ class QTable:
         Parameters
         ----------
         learning_rate : float
-            Tasa de aprendizaje alpha (α) de la ecuación de Bellman.
+            Learning rate alpha (α) of the Bellman equation.
         discount : float
-            Factor de descuento gamma (γ). Controla la importancia del
-            reward futuro vs. el inmediato.
+            Discount factor gamma (γ). Controls the importance of future
+            reward vs. immediate reward.
         epsilon : float
-            Probabilidad de exploración (política ε-greedy).
+            Exploration probability (epsilon-greedy policy).
         """
         self.lr      = learning_rate
         self.gamma   = discount
         self.epsilon = epsilon
 
-        # Inicializar Q-table con valores pequeños aleatorios
+        # Initialize Q-table with small random values
         np.random.seed(42)
         self.q = np.random.rand(NUM_STATES, len(ACTION_SPACE)) * 0.1 - 0.05
         self.q = np.round(self.q, decimals=3)
 
-        self.step_count = 0   # Contador de pasos para decaimiento de epsilon
+        self.step_count = 0   # Step counter for epsilon decay
 
-    # ── Política ε-greedy ─────────────────────────────────────────────────────
+    # ── ε-greedy policy ─────────────────────────────────────────────────────
 
     def choose_action(self, state: int) -> int:
         """
-        Selecciona una acción según la política epsilon-greedy.
+        Select an action according to the epsilon-greedy policy.
 
-        TO-DO [A]: Implementa esta función.
+            The epsilon-greedy policy works as follows:
+            - With probability epsilon → choose a RANDOM action
+              (exploration: the agent tries unknown actions).
+            - With probability (1 - epsilon) → choose the action with the highest
+              Q-value for the current state (exploitation: the agent uses
+              what it has already learned).
 
-            La política epsilon-greedy funciona así:
-            - Con probabilidad epsilon → elige una acción ALEATORIA
-              (exploración: el agente prueba acciones desconocidas).
-            - Con probabilidad (1 - epsilon) → elige la acción con mayor
-              valor Q para el estado actual (explotación: el agente usa
-              lo que ya aprendió).
+            Parameters:
+              state : int  →  current state (0 to NUM_STATES-1)
 
-            Parámetros:
-              state : int  →  estado actual (0 a NUM_STATES-1)
+            Returns:
+              int  →  index of the chosen action (0 to len(ACTION_SPACE)-1)
 
-            Retorna:
-              int  →  índice de la acción elegida (0 a len(ACTION_SPACE)-1)
-
-            Pistas:
-              - np.random.rand() genera un float uniforme en [0, 1).
-              - np.argmax(array) retorna el índice del máximo.
-              - np.random.randint(low, high) genera un entero aleatorio.
-              - La Q-table está en self.q con shape (NUM_STATES, num_actions).
-        ────────────────────────────────────────────────────────────────────
-        SOLUTION:
         """
         if np.random.rand() < self.epsilon:
-            # Exploración: acción aleatoria
+            # Exploration: random action
             return np.random.randint(0, len(ACTION_SPACE))
         else:
-            # Explotación: acción de mayor valor Q
+            # Exploitation: action with highest Q-value
             return int(np.argmax(self.q[state, :]))
 
-    # ── Actualización Q (ecuación de Bellman) ─────────────────────────────────
+    # ── Q-update (Bellman equation) ───────────────────────────────────────────
 
     def update(self, state: int, action: int, reward: float, next_state: int) -> float:
         """
-        Actualiza el valor Q(state, action) usando la ecuación de Bellman.
-
-        TO-DO [B]: Implementa esta función.
-
-            La ecuación de Bellman para Q-Learning es:
+        Update Q(state, action) using the Bellman equation.
+            The Bellman equation for Q-Learning is:
 
               Q(s, a) ← Q(s, a) + α * [r + γ * max_a'(Q(s', a')) - Q(s, a)]
 
-            donde:
-              s      = state       (estado actual)
-              a      = action      (acción tomada)
-              r      = reward      (recompensa recibida)
-              s'     = next_state  (nuevo estado tras ejecutar la acción)
+            where:
+              s      = state       (current state)
+              a      = action      (action taken)
+              r      = reward      (reward received)
+              s'     = next_state  (new state after executing the action)
               α      = self.lr     (learning rate)
               γ      = self.gamma  (discount factor)
 
-            Parámetros:
-              state, action, reward, next_state : como se describe arriba.
+            Parameters:
+              state, action, reward, next_state: as described above.
 
-            Retorna:
-              float  →  el nuevo valor Q(state, action) tras la actualización.
-
-            Pistas:
-              - np.max(array) retorna el máximo valor de un array.
-              - La fila de la Q-table para next_state es self.q[next_state, :].
-        ────────────────────────────────────────────────────────────────────
-        SOLUTION:
+            Returns:
+              float → the new Q(state, action) value after the update.
         """
         current_q    = self.q[state, action]
         max_future_q = np.max(self.q[next_state, :])
@@ -145,24 +127,20 @@ class QTable:
         self.q[state, action] = round(new_q, 4)
         return new_q
 
-    # ── Decaimiento de epsilon ────────────────────────────────────────────────
+    # ── Epsilon decay ────────────────────────────────────────────────
 
     def decay_epsilon(self) -> None:
         """
-        Reduce epsilon gradualmente para favorecer explotación con el tiempo.
-
-        TO-DO [C] (opcional / extensión): Implementa un esquema de decaimiento.
-            Idea: después de cada N pasos, reduce epsilon en 0.05 hasta un
-            mínimo de 0.05.  Usa self.step_count para llevar la cuenta.
-        ────────────────────────────────────────────────────────────────────
-        SOLUTION:
+        Gradually reduce epsilon to favor exploitation over time.
+            Idea: after every N steps, reduce epsilon by 0.05 down to
+            a minimum of 0.05. Use self.step_count to track steps.
         """
         self.step_count += 1
         if self.step_count % 20 == 0 and self.epsilon > 0.05:
             self.epsilon = round(self.epsilon - 0.05, 2)
 
     def reset(self) -> None:
-        """Reinicia la Q-table (útil tras un entrenamiento exitoso)."""
+        """Reset the Q-table to initial random values."""
         np.random.seed(42)
         self.q = np.random.rand(NUM_STATES, len(ACTION_SPACE)) * 0.1 - 0.05
         self.q = np.round(self.q, decimals=3)
@@ -170,7 +148,7 @@ class QTable:
         self.step_count = 0
 
     def print_table(self) -> None:
-        """Imprime la Q-table formateada."""
+        """Print the Q-table in formatted form."""
         header = "  State |" + " ".join(f" {a:>14}" for a in ACTION_SPACE)
         print(header)
         print("-" * len(header))
@@ -180,92 +158,85 @@ class QTable:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Función de reward
+# Reward function for the RL agent
 # ─────────────────────────────────────────────────────────────────────────────
 
 def compute_reward(action: int,
                    syn_before: int, syn_after: int,
                    synack_after: int) -> float:
     """
-    Calcula el reward para el agente RL tras ejecutar una acción.
+    Calculate the reward for the RL agent after executing an action.
 
-    TO-DO [D]: Implementa la función de reward.
+        The agent’s goal is to mitigate the SYN Flood attack without
+        blocking legitimate traffic.  Define the reward rules:
 
-        El objetivo del agente es mitigar el ataque SYN Flood sin
-        bloquear tráfico legítimo.  Define las reglas de reward:
+        Key signals:
+          - syn_before  : SYN count before the action
+          - syn_after   : SYN count after the action
+          - synack_after: SYN-ACK count after (indicates legitimate traffic)
+          - action      : the action taken (0, 1, 2, or 3)
 
-        Señales clave:
-          - syn_before  : conteo SYN antes de la acción
-          - syn_after   : conteo SYN después de la acción
-          - synack_after: conteo SYN-ACK después (indica tráfico legítimo)
-          - action      : la acción ejecutada (0, 1, 2 o 3)
+        Suggested criteria:
+          1. If the attack was stopped (syn_after < threshold) AND there is
+             legitimate traffic (synack_after > 0) → HIGH positive reward.
+          2. If the attack was partially mitigated → moderate reward.
+          3. If everything was blocked (action 0: blocks h1 and h2) → NEGATIVE reward
+             (the agent disrupted legitimate traffic).
+          4. If there was no change → small negative reward (inaction was costly).
 
-        Criterios sugeridos:
-          1. Si el ataque se detuvo (syn_after < umbral) Y hay tráfico
-             legítimo (synack_after > 0) → reward ALTO positivo.
-          2. Si el ataque bajó parcialmente → reward moderado.
-          3. Si se bloqueó todo (acción 0: bloquea h1 y h2) → reward NEGATIVO
-             (el agente perjudicó tráfico legítimo).
-          4. Si no hubo cambio → reward pequeño negativo (inacción costosa).
-
-        Retorna: float  →  el valor del reward (puede ser negativo).
-
-    ────────────────────────────────────────────────────────────────────
-    SOLUTION:
+        Returns: float  →  the reward value (may be negative).
     """
-    ATTACK_THRESHOLD = 50   # SYN packets que indican ataque activo
+    ATTACK_THRESHOLD = 10    # SYN packets per interval indicating active attack
+                               # Calibrated for ~14.5 SYN/s actual rate with --pps 50
 
     if action == 0:
-        # Acción incorrecta: bloquea todo, incluyendo tráfico legítimo
+        # Incorrect action: blocks all traffic including legitimate
         return -10.0
 
     if syn_after < ATTACK_THRESHOLD and synack_after > 0:
-        # Ataque detenido Y tráfico legítimo circulando → éxito
+        # Attack stopped AND legitimate traffic flowing -> success
         return +15.0
     elif syn_after < syn_before:
-        # Ataque reducido parcialmente
+        # Attack partially reduced
         return +5.0
     else:
-        # Sin mejora
+        # No improvement
         return -2.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Función auxiliar: discretización del ratio
+# Auxiliary function: state discretization
 # ─────────────────────────────────────────────────────────────────────────────
 
 def ratio_to_state(syn_count: int, synack_count: int) -> int:
     """
-    Convierte el ratio SYN/SYN-ACK en un estado discreto (0–12).
+    Convert the SYN excess to a discrete state (0–12).
 
-    Un ratio alto (muchos SYN, pocos SYN-ACK) indica ataque.
-    Un ratio bajo o cero indica tráfico normal.
+    A high ratio (many SYNs, few SYN-ACKs) indicates an attack.
+    A low or zero ratio indicates normal traffic.
 
-    TO-DO [E]: Implementa esta función.
+        Suggested logic:
+          - If synack_count == 0 and syn_count > 0 → maximum state (12).
+          - If synack_count == 0 and syn_count == 0 → state 0 (no traffic).
+          - If syn_count <= synack_count → state 0 (normal or legitimate traffic).
+          - If syn_count > synack_count → there is a SYN excess (attack).
+              Discretize the excess: state = min((syn - synack) // 10 + 1, 12)
 
-        Lógica sugerida:
-          - Si synack_count == 0 y syn_count > 0 → estado máximo (12).
-          - Si synack_count == 0 y syn_count == 0 → estado 0 (sin tráfico).
-          - Si syn_count <= synack_count → estado 0 (tráfico normal o legítimo).
-          - Si syn_count > synack_count → hay exceso de SYN (ataque).
-              Discretizar el exceso: state = min((syn - synack) // 10 + 1, 12)
+        Why excess and not a direct ratio:
+          In Mininet, h3 responds to every SYN with an RST+ACK (port 80 closed).
+          This causes syn/synack → 1.0 even during the attack.
+          Using the excess (syn - synack) detects the attack when the RSTs cannot
+          absorb the volume of the SYN flood.
 
-        Por qué exceso y no ratio directo:
-          En Mininet, h3 responde a cada SYN con RST+ACK (puerto 80 cerrado).
-          Esto hace que syn/synack → 1.0 incluso durante el ataque.
-          Usar el exceso (syn - synack) detecta el ataque cuando los RSTs no
-          pueden absorber el volumen del SYN flood.
-
-        Retorna: int en [0, 12].
-    ────────────────────────────────────────────────────────────────────
-    SOLUTION:
+        Returns: int in [0, 12].
     """
     if synack_count == 0:
         return 12 if syn_count > 0 else 0
 
     if syn_count <= synack_count:
-        return 0   # tráfico normal: SYN-ACK/RST absorbe todos los SYNs
-
-    # Exceso de SYN sobre SYNACK → ataque detectado
+        return 0   # Normal traffic: SYN-ACK/RST absorbs all SYNs
+    # SYN excess over SYNACK → attack detected
     excess = syn_count - synack_count
     return min(int(excess / 10) + 1, 12)
+
+

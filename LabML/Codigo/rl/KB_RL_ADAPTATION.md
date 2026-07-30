@@ -61,14 +61,12 @@ Esto elimina:
 - El script `get_counters.py` en h4
 - La dependencia de Scapy con IPOption_MRI
 
-**El host h4** se mantiene en la topología como punto de monitoreo opcional (puede usar
-tcpdump para observar el tráfico) pero ya no es necesario para el flujo principal del RL.
 
 ### 3. Reducción de topología: 6 switches → 2 switches
 
 **Original**: Topología tipo pod con s1–s6 (estructura de data center).
 
-**Adaptación**: 2 switches (s1 border + s2 server-side), 3 hosts funcionales + h4 moniteo.
+**Adaptación**: 2 switches (s1 border + s2 server-side), 3 hosts funcionales.
 Razón: la topología de 6 switches es para load balancing (el contexto del paper QCMP),
 pero en este ejercicio el objetivo es mitigación de ataques, donde 2 switches son suficientes
 para ilustrar el concepto sin añadir complejidad de configuración innecesaria.
@@ -282,6 +280,80 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 | `ping: connect: Network is unreachable` | `configure_hosts()` usa nexthop `10.0.1.254` que está fuera del /26 de h1/h2; kernels modernos rechazan la ruta sin `onlink` | Ya corregido: se agregó `onlink` a ambos `ip route add` en topo.py |
 | send_attack no llega a h3 (h2 invisible en tcpdump) | Scapy ≥2.4.x captura `FileNotFoundError` de tcpreplay internamente, imprime el traceback pero retorna sin relanzar → nuestro `except` nunca ejecuta, fallback nunca corre; `sendpfast` depende de `tcpreplay` que no está instalado | Ya corregido: `send_attack.py` reescrito sin `sendpfast`; usa `sendp()` directamente en loop con control de tasa |
 | Después de quitar firewall, h2 sigue sin aparecer | El ataque ya terminó (duration=30s) antes de quitar la regla; el test instaló el firewall antes de iniciar el ataque | Cambio en el procedimiento: iniciar h1 y h2 sin firewall, verificar ambos, luego instalar la regla |
+
+---
+
+## Resultado de validaci\u00f3n (ejecutado 2026-07-27)
+
+### Resumen de pasos validados
+
+| Paso | Resultado |
+|---|---|
+| Compilaci\u00f3n P4 | \u2705 Sin errores |
+| Reglas s1 (4 handles) | \u2705 Sin DUPLICATE_ENTRY |
+| Reglas s2 (3 handles) | \u2705 Sin DUPLICATE_ENTRY |
+| Ping h1\u2192h3 (TTL=62) | \u2705 3/3 paquetes, 0% p\u00e9rdida |
+| RST suppression en h3 | \u2705 iptables DROP RST aplicado |
+| send_legit (h1\u2192h3) | \u2705 Paquetes SYN+ACK visibles en h3 |
+| send_attack (h2\u2192h3) | \u2705 ~14.5 pps real (727 SYN en 50s) |
+| Test de bloqueo | \u2705 Ver detalles abajo |
+| RL agent + Q-table | \u2705 Parcial \u2014 ver detalles abajo |
+
+### Test de bloqueo \u2014 comportamiento observado en h3
+
+```
+22:11:48 \u2013 22:12:10 \u2192 solo 10.0.1.1 (send_legit, sin ataque)
+22:12:10             \u2192 primer paquete de 10.0.1.82 (send_attack inicia)
+22:12:10 \u2013 22:12:27 \u2192 AMBOS 10.0.1.1 y 10.0.1.82 (sin firewall)
+22:12:27             \u2192 10.0.1.82 desaparece completamente (firewall instalado)
+22:12:48             \u2192 10.0.1.82 reaparece (firewall eliminado)
+22:13:01             \u2192 10.0.1.82 termina (50s de duraci\u00f3n de ataque)
+```
+El firewall P4 bloquea selectivamente la subred `10.0.1.64/26` (h2) sin afectar `10.0.1.0/26` (h1). \u2705
+
+### RL Agent \u2014 an\u00e1lisis del entrenamiento
+
+**Tasa real del ataque**: 727 SYN en 50s \u2248 **14.5 SYN/s** (Python overhead de `time.sleep(1/50)` + latencia de `sendp()`).
+
+**Episodios activos** (state>0): 9 episodios \u00fatiles en 28 total.
+
+| Episodio | Estado | Acci\u00f3n | Reward | Nota |
+|---|---|---|---|---|
+| E000 | 12 | no_action | +15 | False positive: registros residuales de prueba anterior (SYN=552) |
+| E002 | 12 | no_action | +15 | Threshold incorrecto (ver abajo) |
+| E003 | 3 | block_all | -10 | \u2705 Correctamente penalizado \u2014 bloqu\u00f3 h1 tambi\u00e9n |
+| E004 | 12 | no_action | +15 | Threshold incorrecto |
+| E005-007 | 4 | no_action | +15 | Threshold incorrecto |
+| E008 | 3 | block_attacker | +15 | \u2705 *** Ataque MITIGADO *** correcto |
+
+**Q-table al final (9 episodios activos):**
+```
+State |  block_all  block_attacker  no_action  block_both
+   3  |   -0.9950       2.9849      -0.0320    -0.0320   \u2190 block_attacker aprendido \u2705
+   4  |   -0.0200       0.0020       7.7427    -0.0210   \u2190 no_action incorrecto \u26a0\ufe0f
+  12  |    0.0050      -0.0320       7.3499     0.0280   \u2190 no_action incorrecto \u26a0\ufe0f
+```
+
+**Problema identificado \u2014 ATTACK_THRESHOLD demasiado alto:**
+`compute_reward()` usaba `ATTACK_THRESHOLD=50`. La condici\u00f3n `syn_after < 50` era verdadera incluso durante el ataque activo (syn_after \u2248 33 = 14.5pps \u00d7 2s), por lo que el agente rec\u00eda +15 por `no_action`. **Fix aplicado**: `ATTACK_THRESHOLD = 10` (ya corregido en `q_table.py`).
+
+**Nota pedag\u00f3gica**: El agente aprendi\u00f3 la penalizaci\u00f3n por `block_all` (E003, reward=-10) y el bloqueo correcto en E008. El ejercicio demuestra los conceptos RL fundamentales aunque la convergencia completa requiere m\u00e1s episodios con el threshold corregido.
+
+---
+
+## Equivalencia con archivos del repositorio original (GITA Demo-RL)
+
+| Archivo original GITA | Archivo adaptado | Cambios |
+|---|---|---|
+| `simple_switch.p4-RL.TODO` (P4) | `p4src/syn_flood_rl.p4` | **Modificado**: eliminada telemetr\u00eda MRI (IP Option 31); eliminadas tablas P4Runtime; simplificado a forwarding b\u00e1sico + firewall LPM + registros synReg/synAckRstReg. |
+| `initiate_rules.py` | `s1-commands.txt` / `s2-commands.txt` | **Migrado a comandos est\u00e1ticos**: el original instalaba reglas via P4Runtime. Ahora son l\u00edneas `table_add` instaladas con `simple_switch_CLI`. Reglas din\u00e1micas del firewall gestionadas en `controller.py`. |
+| `receive_counters.py` | `controller.py` (bucle principal) | **Fusionado + reescrito**: le\u00eda contadores via gRPC y los enviaba a h4 via MRI. Adaptado: lee registros via subprocess CLI, elimina dependencia de MRI/h4, integra el bucle RL. |
+| `get_counters.py` | `controller.py` (`read_register()`) | **Fusionado**: el original extraa contadores via P4Runtime. Reemplazado por `read_register()` usando `register_read` de simple_switch_CLI + regex. |
+| `tcpsession.py` | \u2014 (sin equivalente) | **Eliminado**: gestionaba la sesi\u00f3n gRPC (conexiones a puertos 50051-50056). No necesario \u2014 `simple_switch_CLI` es stateless (Thrift ef\u00edmero por llamada). |
+| `q_table.py` | `q_table.py` | **Adaptado directamente**: misma estructura numpy. Cambios: `compute_reward()` reescrita para SYN Flood; `ratio_to_state()` cambiada a f\u00f3rmula de exceso (syn-synack); `ATTACK_THRESHOLD` corregido de 50 a 10; TO-DOs a\u00f1adidos para el estudiante. |
+| `send_attack.py` | `send_attack.py` | **Adaptado**: eliminado `sendpfast` (requiere tcpreplay no disponible); reemplazado por loop `sendp()` con control de tasa. IP fuente: `10.0.1.82`. |
+| `update_entries.sh` | `controller.py` (`block_subnet()` / `unblock_subnet()`) | **Migrado a Python**: el bash script llamaba `table_add`/`table_delete`. Reemplazado por funciones Python que usan subprocess y conservan los handles para poder deshacer. |
+| `reset_registers.sh` | `reset_registers.sh` | **Adaptaci\u00f3n m\u00ednima**: el original usaba P4Runtime. Adaptado para `simple_switch_CLI <<< "register_reset ..."`. |
 
 ---
 
