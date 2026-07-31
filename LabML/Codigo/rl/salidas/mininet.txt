@@ -50,17 +50,18 @@ mininet>
 
 __________________________________________________________
 WE RUN BOTH SCRIPTS AGAIN WITH THE RL CONTROLLER RUNNING IN OTHER TERMINAL
+
+mininet> h2 python3 send_attack.py --pps 50 &
 mininet> h1 python3 send_legit.py &
-mininet> h2 python3 send_attack.py --pps 50 --duration 50 &
 mininet> h1 kill %1
-[LEGIT] Tráfico legítimo h1→h3 (10.0.6.1:80)
-[LEGIT] Envío continuo — Ctrl+C para detener
+[LEGIT] Legitimate traffic h1→h3 (10.0.6.1:80)
+[LEGIT] Sending continuously -- Ctrl+C to stop
 
-bash: kill: %1: no such job
 mininet> h2 kill %1
-[ATTACK] SYN Flood: 10.0.6.1:80 a ~50 pps durante 50s
-[ATTACK] Interfaz: eth0  |  Ctrl+C para detener
+[ATTACK] SYN Flood: 10.0.6.1:80 at ~50 pps for 60s
+[ATTACK] Interface: eth0  |  Ctrl+C to stop
 
 
-[ATTACK] Finalizado. Enviados 729 paquetes SYN en 50s.
+[ATTACK] Finished. Sent 866 SYN packets in 60s.
+
 mininet> 
