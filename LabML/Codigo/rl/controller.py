@@ -185,7 +185,7 @@ def execute_action(action: int, thrift_port: int) -> None:
     Execute the action chosen by the agent on the firewall table.
 
     Action map:
-        0 → Block 10.0.1.0/26   (blocks h1 AND h2 — incorrect action)
+        0 → Block 10.0.1.0/26   (blocks ONLY h1 — incorrect action)
         1 → Block 10.0.1.64/26  (blocks ONLY h2   — correct action)
         2 → Unblock all          (passive action)
         3 → Block both subnets   (aggressive)
@@ -226,12 +226,6 @@ def run_rl_agent(thrift_port: int, interval: float, episodes: int) -> None:
 
     for episode in range(episodes):
         # ── Step 1-2: read current state ──────────────────────────────────────
-        # TO-DO [5] : The register names and index below must match
-        #            the declarations in syn_flood_rl.p4.
-        #            - 'MyIngress.synReg'       counts incoming SYN packets
-        #            - 'MyIngress.synAckRstReg' counts ACK/SYN-ACK/RST packets
-        #            - Index 1: the active slot (index 0 is reserved)
-        # ─────────────────────────────────────────────────────────────────────
         syn_before    = read_register('MyIngress.synReg',       1, thrift_port)
         synack_before = read_register('MyIngress.synAckRstReg', 1, thrift_port)
         state         = ratio_to_state(syn_before, synack_before)

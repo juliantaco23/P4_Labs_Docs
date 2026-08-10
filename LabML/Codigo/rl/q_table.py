@@ -13,7 +13,7 @@ Environment state:
     - State 12: large excess or no synack (massive attack)
 
 Available actions (ACTION_SPACE):
-    0 -> Block subnet 10.0.1.0/26  (blocks h1 AND h2 -- incorrect action)
+  0 -> Block subnet 10.0.1.0/26  (blocks ONLY h1 -- incorrect action)
     1 -> Block subnet 10.0.1.64/26 (blocks ONLY h2  -- correct action)
     2 -> No block (or unblock)      (passive action / reset)
     3 -> Block both subnets         (blocks all -- suboptimal)
@@ -28,11 +28,11 @@ import numpy as np
 # State and action space
 # ─────────────────────────────────────────────────────────────────────────────
 NUM_STATES  = 13   # Discrete SYN-excess levels (0 to 12)
-ACTION_SPACE = ('block_all', 'block_attacker', 'no_action', 'block_both')
+ACTION_SPACE = ('block_legitimate', 'block_attacker', 'no_action', 'block_both')
 
 # Subnets corresponding to each blocking action
 ACTION_SUBNETS = {
-    0: '10.0.1.0/26',    # Blocks h1 AND h2 (incorrect)
+  0: '10.0.1.0/26',    # Blocks ONLY h1 (incorrect)
     1: '10.0.1.64/26',   # Blocks ONLY h2   (correct)
     2: None,             # No block
     3: None,             # Both rules above are used
@@ -180,8 +180,8 @@ def compute_reward(action: int,
           1. If the attack was stopped (syn_after < threshold) AND there is
              legitimate traffic (synack_after > 0) → HIGH positive reward.
           2. If the attack was partially mitigated → moderate reward.
-          3. If everything was blocked (action 0: blocks h1 and h2) → NEGATIVE reward
-             (the agent disrupted legitimate traffic).
+           3. If the legitimate client was blocked (action 0) → NEGATIVE reward
+             (the agent disrupted legitimate traffic without stopping h2).
           4. If there was no change → small negative reward (inaction was costly).
 
         Returns: float  →  the reward value (may be negative).
@@ -190,7 +190,7 @@ def compute_reward(action: int,
                                # Calibrated for ~14.5 SYN/s actual rate with --pps 50
 
     if action == 0:
-        # Incorrect action: blocks all traffic including legitimate
+      # Incorrect action: blocks the legitimate client but not the attacker
         return -10.0
 
     if syn_after < ATTACK_THRESHOLD and synack_after > 0:

@@ -1,21 +1,22 @@
 /* dt_switch.p4
  *
- * Implementación de un Árbol de Decisión dentro de un switch P4 programable.
- * El árbol clasifica tráfico TCP en función de tres features del paquete:
+ * Implementation of a Decision Tree inside a programmable P4 switch.
+ * The tree classifies TCP traffic based on three packet features:
  *   Feature 1: IP Protocol      (hdr.ipv4.protocol)
  *   Feature 2: TCP Source Port  (hdr.tcp.srcPort)
  *   Feature 3: TCP Dest Port    (hdr.tcp.dstPort)
  *
- * Cada tabla (feature1_exact, feature2_exact, feature3_exact) asigna un
- * valor entero ("action select") a cada feature según los umbrales del árbol.
- * La tabla ipv4_exact combina los tres valores para determinar el puerto de salida.
+ * Each table (feature1_exact, feature2_exact, feature3_exact) assigns an
+ * integer ("action select") to each feature according to the tree's thresholds.
+ * The ipv4_exact table combines the three values to determine the output port.
  *
- * Basado en: Xiong & Zilberman, "Toward Smarter, Adaptive... Programmable
- * Data Planes" (2021), adaptado del repositorio GITA ONOSP4-tutorial.
+ * Based on: Xiong & Zilberman, "Do Switches Dream of Machine Learning?
+ * Toward In-Network Classification" (2019), via the IIsy artifact and the
+ * GITA ONOSP4-tutorial DecisionTrees2 exercise.
  *
- * Adaptación para el proyecto TFG — Internet del Futuro, Universidad de Antioquia.
- * Se elimina la dependencia de ONOS/P4Runtime; las reglas se instalan mediante
- * simple_switch_CLI (archivo s1-commands.txt).
+ * Adaptation for the TFG project — Internet of the Future, Universidad de Antioquia.
+ * P4Runtime/ONOS dependency removed; rules are installed via
+ * simple_switch_CLI (file s1-commands.txt).
  */
 
 #include <core.p4>
@@ -38,10 +39,10 @@ header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     /*
-     * TO-DO [1]: Añade el campo EtherType (bit<16>).
-     *            Este campo indica el protocolo de capa 3 encapsulado.
+     * TO-DO [1]: Add the EtherType field (bit<16>).
+     *            This field indicates the encapsulated Layer 3 protocol.
      * ─────────────────────────────────────────────────────────────────
-     * SOLUTION: El campo se declara como bit<16> etherType.
+     * SOLUTION: Declare the field as bit<16> etherType.
      */
     bit<16> etherType;
 }
@@ -49,8 +50,8 @@ header ethernet_t {
 // ── IPv4 ─────────────────────────────────────────────────────────────────
 header ipv4_t {
     /*
-     * TO-DO [2]: Define todos los campos del encabezado IPv4 (RFC 791).
-     *            Recuerda: version (4b), ihl (4b), diffserv (8b),
+     * TO-DO [2]: Define all IPv4 header fields (RFC 791).
+     *            Remember: version (4b), ihl (4b), diffserv (8b),
      *            totalLen (16b), identification (16b), flags (3b),
      *            fragOffset (13b), ttl (8b), protocol (8b),
      *            hdrChecksum (16b), srcAddr (32b), dstAddr (32b).
@@ -74,10 +75,10 @@ header ipv4_t {
 // ── TCP ──────────────────────────────────────────────────────────────────
 header tcp_t {
     /*
-     * TO-DO [3]: Define todos los campos del encabezado TCP (RFC 793).
+     * TO-DO [3]: Define all TCP header fields (RFC 793).
      *            srcPort (16b), dstPort (16b), seqNo (32b), ackNo (32b),
      *            dataOffset (4b), res (3b), ecn (3b), flags urg/ack/psh/
-     *            rst/syn/fin (1b c/u), window (16b), checksum (16b),
+     *            rst/syn/fin (1b each), window (16b), checksum (16b),
      *            urgentPtr (16b).
      * ─────────────────────────────────────────────────────────────────
      * SOLUTION:
@@ -100,13 +101,13 @@ header tcp_t {
     bit<16> urgentPtr;
 }
 
-// ── Metadata (salidas parciales del árbol de decisión) ───────────────────
-// Cada campo almacena el "bucket" asignado por su feature table.
-// Al combinarlos en ipv4_exact se obtiene la clasificación final.
+// ── Metadata (partial outputs from the decision tree) ───────────────────
+// Each field stores the bucket assigned by its feature table.
+// Combining them in ipv4_exact yields the final classification.
 struct metadata {
-    bit<14> action_select1;   // resultado de feature1_exact (IP proto)
-    bit<14> action_select2;   // resultado de feature2_exact (TCP src port)
-    bit<14> action_select3;   // resultado de feature3_exact (TCP dst port)
+    bit<14> action_select1;   // output of feature1_exact (IP proto)
+    bit<14> action_select2;   // output of feature2_exact (TCP src port)
+    bit<14> action_select3;   // output of feature3_exact (TCP dst port)
 }
 
 struct headers {
@@ -131,9 +132,9 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         /*
-         * TO-DO [4]: Define las transiciones según el campo etherType:
-         *            - Si es IPv4 (TYPE_IPV4 = 0x0800) → parse_ipv4
-         *            - En cualquier otro caso → accept
+         * TO-DO [4]: Define transitions based on the etherType field:
+         *            - If IPv4 (TYPE_IPV4 = 0x0800) → parse_ipv4
+         *            - Otherwise → accept
          * ─────────────────────────────────────────────────────────
          * SOLUTION:
          */
@@ -146,9 +147,9 @@ parser MyParser(packet_in packet,
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
         /*
-         * TO-DO [5]: Define las transiciones según hdr.ipv4.protocol:
-         *            - Si es TCP (6) → parse_tcp
-         *            - En cualquier otro caso → accept
+         * TO-DO [5]: Define transitions based on hdr.ipv4.protocol:
+         *            - If TCP (6) → parse_tcp
+         *            - Otherwise → accept
          * ─────────────────────────────────────────────────────────
          * SOLUTION:
          */
@@ -185,7 +186,7 @@ control MyIngress(inout headers hdr,
     }
 
     // ── Forwarding L2/L3 ─────────────────────────────────────────────────
-    // Usada por ipv4_exact para reescribir la MAC destino y seleccionar el puerto.
+    // Used by ipv4_exact to rewrite the destination MAC and select the output port.
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
@@ -194,8 +195,8 @@ control MyIngress(inout headers hdr,
     }
 
     // ── Feature actions ───────────────────────────────────────────────────
-    // Cada acción recibe el valor de "bucket" asignado al paquete por el árbol
-    // y lo almacena en el campo correspondiente de metadata.
+    // Each action receives the bucket value assigned to the packet by the tree
+    // and stores it in the corresponding metadata field.
 
     action set_actionselect1(bit<14> featurevalue1) {
         meta.action_select1 = featurevalue1;
@@ -207,9 +208,9 @@ control MyIngress(inout headers hdr,
 
     action set_actionselect3(bit<14> featurevalue3) {
         /*
-         * TO-DO [6]: Implementa esta acción.
-         *            Debe almacenar el argumento featurevalue3 en el campo
-         *            action_select3 de la estructura de metadata.
+         * TO-DO [6]: Implement this action.
+         *            Store the featurevalue3 argument in the
+         *            action_select3 field of the metadata struct.
          * ─────────────────────────────────────────────────────────────
          * SOLUTION:
          */
@@ -217,8 +218,8 @@ control MyIngress(inout headers hdr,
     }
 
     // ── Feature tables ────────────────────────────────────────────────────
-    // Cada tabla representa un nodo del árbol de decisión para un feature.
-    // El tipo de matching "range" permite expresar intervalos [min, max].
+    // Each table represents a decision tree node for one feature.
+    // The "range" match type allows expressing value intervals [min, max].
 
     table feature1_exact {
         key = {
@@ -249,10 +250,10 @@ control MyIngress(inout headers hdr,
     table feature3_exact {
         key = {
             /*
-             * TO-DO [7]: Define la clave de esta tabla usando el
-             *            puerto destino TCP (hdr.tcp.dstPort).
-             *            El tipo de matching debe ser "range" para
-             *            poder expresar intervalos de valores.
+             * TO-DO [7]: Define the key for this table using the
+             *            TCP destination port (hdr.tcp.dstPort).
+             *            The match type must be "range" to
+             *            express value intervals.
              * ─────────────────────────────────────────────────────
              * SOLUTION:
              */
@@ -267,9 +268,9 @@ control MyIngress(inout headers hdr,
         counters = direct_counter(CounterType.packets_and_bytes);
     }
 
-    // ── Decision table: combina los tres feature selects ─────────────────
-    // La clave es la combinación (range, range, range) de los tres valores
-    // de metadata. Cada entrada del árbol de decisión genera una fila aquí.
+    // ── Decision table: combines the three feature selects ────────────────
+    // The key is the combination (range, range, range) of the three
+    // metadata values. Each decision tree entry generates one row here.
     table ipv4_exact {
         key = {
             meta.action_select1 : range;
@@ -289,23 +290,23 @@ control MyIngress(inout headers hdr,
 
     apply {
         if (hdr.ipv4.isValid()) {
-            // Paso 1: clasificar Feature 1 (IP protocol) para todos los paquetes IP
+            // Step 1: classify Feature 1 (IP protocol) for all IP packets
             feature1_exact.apply();
 
             /*
-             * TO-DO [8]: Implementa la lógica para Features 2 y 3.
+             * TO-DO [8]: Implement the logic for Features 2 and 3.
              *
-             *   - Si el paquete es TCP (hdr.tcp.isValid()):
-             *       • Aplica feature2_exact (TCP src port → action_select2)
-             *       • Aplica feature3_exact (TCP dst port → action_select3)
+             *   - If the packet is TCP (hdr.tcp.isValid()):
+             *       • Apply feature2_exact (TCP src port → action_select2)
+             *       • Apply feature3_exact (TCP dst port → action_select3)
              *
-             *   - Si el paquete NO es TCP (ej. ICMP):
-             *       • Asigna action_select2 = 1 (valor por defecto)
-             *       • Asigna action_select3 = 1 (valor por defecto)
+             *   - If the packet is NOT TCP (e.g. ICMP):
+             *       • Assign action_select2 = 1 (default value)
+             *       • Assign action_select3 = 1 (default value)
              *
-             *   Justificación: las features 2 y 3 son puertos TCP. Para
-             *   paquetes no-TCP estos campos no existen en el encabezado,
-             *   por lo que se asigna el bucket 1 (rama "default" del árbol).
+             *   Rationale: features 2 and 3 are TCP ports. For non-TCP
+             *   packets these fields do not exist in the header,
+             *   so bucket 1 is assigned (the "default" branch of the tree).
              * ──────────────────────────────────────────────────────────────
              * SOLUTION:
              */
@@ -318,7 +319,7 @@ control MyIngress(inout headers hdr,
             }
         }
 
-        // Paso 2: la tabla final combina los tres selects para decidir el destino
+        // Step 2: the final table combines the three selects to decide the destination
         ipv4_exact.apply();
     }
 }

@@ -9,7 +9,7 @@ root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# python3 controller.py --interval 
 [E000] Q(12,2) updated → 1.0380
 [CTRL] Registers reset.
 [E001] SYN=32 SYN-ACK=4 state=3 ε=0.40
-[E001] → Action 0: block_all
+[E001] → Action 0: block_legitimate
 [FW] BLOCKED 10.0.1.0/26 (handle 16777216)
 [CTRL] Registers reset.
 [E001] SYN_after=32 SYN-ACK_after=0 next_state=12 reward=-10.0
@@ -31,7 +31,7 @@ root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# python3 controller.py --interval 
 
 [RL] *** Attack MITIGATED in episode 3 ***
 
-  State |      block_all  block_attacker       no_action      block_both
+  State |      block_legitimate  block_attacker       no_action      block_both
 ------------------------------------------------------------------------
       0 |        -0.0130          0.0450          0.0230          0.0100
       1 |        -0.0340         -0.0340         -0.0440          0.0370

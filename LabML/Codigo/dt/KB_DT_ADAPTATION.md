@@ -5,10 +5,12 @@
 | Item | Valor |
 |---|---|
 | Fuente original | `ONOSP4-tutorial/DecisionTrees2/` (GITA, Universidad de Antioquia) |
-| Paper base | Xiong, J. & Zilberman, N. (2021). *Toward Smarter, Adaptive Forwarding in P4 Programmable Networks*. |
+| Paper y artefacto base | Xiong, Z. & Zilberman, N. (2019). *Do Switches Dream of Machine Learning? Toward In-Network Classification*; repositorio IIsy (`cucl-srg/IIsy`). |
 | Repositorio GITA | https://github.com/grupogita/ONOSP4-tutorial |
 | Destino adaptado | `P4_Labs_Docs/LabML/Codigo/dt/` |
 | Rol en LabML | Ejercicio 3 — guiado (el estudiante completa los TO-DO del código P4) |
+
+`DecisionTrees2` es la fuente docente inmediata del esqueleto usado en este laboratorio y su README cita el trabajo de HotNets 2019. El código de extracción `get_lineage`, el formato textual de reglas y la estructura de tablas provienen del artefacto IIsy asociado a ese trabajo. El artículo de 2024 *IIsy: Hybrid In-Network Classification Using Programmable Switches* es una publicación posterior con otro artefacto y no es la fuente del código de esta adaptación.
 
 ---
 
@@ -185,18 +187,18 @@ TO-DO en `dt_switch.p4`, e instalar las reglas resultantes.
 
 ---
 
-## TO-DO del estudiante (puntos de acción en dt_switch.p4)
+## Student TO-DOs (action points in dt_switch.p4)
 
-| TO-DO | Línea aprox. | Descripción |
+| TO-DO | Approx. line | Description |
 |---|---|---|
-| [1] | ~35 | Añadir campo `bit<16> etherType` en `ethernet_t` |
-| [2] | ~46 | Definir todos los campos del encabezado IPv4 (RFC 791) |
-| [3] | ~63 | Definir todos los campos del encabezado TCP (RFC 793) |
-| [4] | ~116 | Añadir transición `TYPE_IPV4: parse_ipv4` en `parse_ethernet` |
-| [5] | ~126 | Añadir transición `IP_PROTO_TCP: parse_tcp` en `parse_ipv4` |
-| [6] | ~170 | Implementar body de `set_actionselect3`: asignar `meta.action_select3 = featurevalue3` |
-| [7] | ~205 | Definir key de `feature3_exact`: `hdr.tcp.dstPort : range` |
-| [8] | ~235 | Implementar bloque `if (hdr.tcp.isValid())` con apply de features 2 y 3; else asignar selects = 1 |
+| [1] | ~35 | Add `bit<16> etherType` field to `ethernet_t` |
+| [2] | ~46 | Define all IPv4 header fields (RFC 791) |
+| [3] | ~63 | Define all TCP header fields (RFC 793) |
+| [4] | ~116 | Add transition `TYPE_IPV4: parse_ipv4` in `parse_ethernet` |
+| [5] | ~126 | Add transition `IP_PROTO_TCP: parse_tcp` in `parse_ipv4` |
+| [6] | ~170 | Implement body of `set_actionselect3`: assign `meta.action_select3 = featurevalue3` |
+| [7] | ~205 | Define key of `feature3_exact`: `hdr.tcp.dstPort : range` |
+| [8] | ~235 | Implement `if (hdr.tcp.isValid())` block with apply of features 2 and 3; else assign selects = 1 |
 
 ---
 
@@ -207,13 +209,13 @@ TO-DO en `dt_switch.p4`, e instalar las reglas resultantes.
 cd P4_Labs_Docs/LabML/Codigo/dt
 mkdir -p p4src/build
 p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/dt_switch.p4
-# Esperado: sin errores. Si hay errores de "empty header", revisar TO-DO [2]/[3].
+# Expected: no errors. If "empty header" errors appear, check TO-DO [2]/[3].
 ```
 
-### Arranque de topología
+### Topology start
 ```bash
 sudo python3 mininet/topo.py
-# Esperado: prompt "mininet>" sin errores de BMv2.
+# Expected: "mininet>" prompt without BMv2 errors.
 ```
 
 ### Instalación de reglas

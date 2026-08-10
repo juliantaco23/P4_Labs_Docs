@@ -16,9 +16,10 @@ The RL agent (controller.py) runs on the host where Mininet is located and commu
 with s1 via simple_switch_CLI (Thrift port 9090).
 
 Agent actions:
-  - Action 0: Block 10.0.1.0/26  → blocks h1 AND h2 (INCORRECT → negative reward)
+  - Action 0: Block 10.0.1.0/26  → blocks only h1 (INCORRECT → negative reward)
   - Action 1: Block 10.0.1.64/26 → blocks only h2  (CORRECT  → positive reward)
   - Action 2: Do nothing (initial state / unblock)
+  - Action 3: Block both subnets  → blocks h1 and h2 (suboptimal)
 
 Usage:
   1. Compile P4:

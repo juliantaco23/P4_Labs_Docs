@@ -1,8 +1,8 @@
 # Knowledge Base: Attack_Clasification.ipynb — Contexto y Guía de Integración
 
 > **Nota de autoría**: Este notebook fue creado por Santiago Ríos Guiral, Santiago Taborda
-> Echeverri y Brayan David Ramos Caicedo (UdeA). Se entrega **completo y sin modificaciones**
-> al estudiante. Esta KB documenta **contexto adicional** para la redacción de la guía
+> Echeverri y Brayan David Ramos Caicedo (UdeA). Se entrega **sin modificar respecto al original**
+> al estudiante, pero contiene actividades y celdas de código incompletas que el estudiante debe resolver. Esta KB documenta **contexto adicional** para la redacción de la guía
 > y la validación; no duplica el contenido del notebook.
 
 ---
@@ -13,7 +13,7 @@
 |---|---|
 | Archivo | `LabML/Codigo/Attack_Clasification.ipynb` |
 | Rol en LabML | **Ejercicio 1** — introducción guiada a Machine Learning supervisado |
-| El estudiante recibe | ✅ Sí — notebook completo, listo para ejecutar en Google Colab |
+| El estudiante recibe | ✅ Sí — notebook original con scaffolds y celdas pendientes, preparado para Google Colab |
 | Prerrequisito | Ninguno (es el primer ejercicio del laboratorio ML) |
 | Conecta con | Ejercicio 2 (ML_Pipeline_DT.ipynb) — mismos conceptos ML aplicados a tráfico IoT |
 | Lenguaje de instrucción | Inglés |
@@ -61,19 +61,19 @@
 
 ### Descarga del dataset
 
-El notebook usa `!wget` con Google Drive IDs para descargar los archivos automáticamente:
+Los enlaces originales del dataset dejaron de estar disponibles. Se creó una carpeta propia en Google Drive con los tres archivos CSV y se actualizaron los identificadores en el notebook. Los IDs actuales son:
+
 ```python
-# IDs de Google Drive (celdas del notebook)
-testing-set:  1OzTpumhhK3T_juCxLSDe8D7ZuQYWjXhm
-training-set: 1I6Tp90l4qVB9Xg3gtIomsDQD2yzeG3te
-complete-set: 1tuXSTha6y41f-hcd4pdZhv1_7EeRrJr_
+# IDs de Google Drive actualizados (Attack_Clasification_copy.ipynb)
+complete-set: 1ar_NqHPZiYp9Zd7piZcNZkk-JskvWqwz
+training-set: 1JA9YzlFWhiqOYg4in1YEsGgyeJQ5qmwt
+testing-set:  1aI_sXc3I8XMCmVSqCuEYXEpht_fseA1m
 ```
 
-> ⚠️ **Nota para el docente**: Los IDs de Drive de la descarga pueden expirar o requerir
-> autenticación si el archivo no está configurado como "público". Verificar accesibilidad
-> antes de cada edición del laboratorio y actualizar los IDs si es necesario.
-> El script de descarga usa cookies (`/tmp/cookies.txt`) que pueden fallar en Colab.
-> Alternativa: alojar los CSVs en una carpeta pública de Drive y usar `gdown`.
+> ⚠️ **Nota para el docente**: Verificar periódicamente que los IDs de Drive sigan
+> siendo accesibles públicamente. El script de descarga usa cookies (`/tmp/cookies.txt`)
+> que pueden fallar en Colab. Alternativa: alojar los CSVs en una carpeta pública de
+> Drive y usar `gdown`.
 
 ---
 
@@ -105,8 +105,9 @@ la clase "Audio" desaparece del árbol L3.
 
 El estudiante implementa:
 - Split 70/30 estratificado
-- Al menos 2 clasificadores (Decision Tree, KNN, SVM, etc.)
-- Comparación unbalanced vs. balanced (undersampling)
+- Al menos 2 clasificadores (Decision Tree, KNN)
+- Comparación unbalanced vs. balanced (RandomUnderSampler)
+- Matriz de confusión para cada variante
 
 **Concepto clave introducido**: el **accuracy paradox** — un modelo que siempre predice
 "Normal" puede tener alta accuracy si "Normal" domina los datos.
@@ -138,6 +139,13 @@ Esta es la conexión conceptual más directa con la **limitación de 3 features*
 en ML_Pipeline_DT.ipynb: mientras que UNSW-NB15 tiene ~47 features de flujo,
 P4 solo puede acceder a 3 campos del encabezado del paquete sin estado de flujo.
 
+**Actividades concretas en estas celdas:**
+- Cell 41: seleccionar un subconjunto de características numéricas, repetir la
+  clasificación binaria con DecisionTree y comparar la exactitud.
+- Cell 42: aplicar StandardScaler, repetir la clasificación con DecisionTree y
+  KNN, observar que el árbol es invariante a escala mientras que KNN sí se beneficia
+  de la estandarización.
+
 ---
 
 ## Conceptos pedagógicos establecidos para los ejercicios posteriores
@@ -148,7 +156,7 @@ para los ejercicios 2–4 del LabML:
 | Concepto establecido aquí | Uso en los ejercicios siguientes |
 |---|---|
 | Accuracy paradox (class imbalance) | Interpretar el 84.3% del árbol DT en ML_Pipeline_DT |
-| Precision / Recall / F1 | Evaluar el clasificador IoT en ML_Pipeline_DT |
+| Accuracy y matriz de confusión | Evaluar los clasificadores implementados por el estudiante y preparar la interpretación del árbol IoT |
 | Decision Tree como clasificador | Base para entender DT-in-P4 (Ejercicio 3) |
 | Undersampling | Justifica por qué Audio desaparece del árbol L3 |
 | Clasificación binaria (normal vs. ataque) | Marco conceptual del ejercicio RL (Ejercicio 4): normal vs. SYN flood |
@@ -188,12 +196,19 @@ Esto deja ~43 features numéricas para los clasificadores.
 
 ## Notas para la redacción de la guía de laboratorio (LabML.tex)
 
-- El notebook está **completo** — el estudiante lo ejecuta y escribe sus observaciones
-- No hay TODOs de código; el ejercicio es de exploración e interpretación
+- El notebook incluye código de preparación, pero el estudiante debe implementar:
+  - Los boxplots exploratorios (Cell 16)
+  - Los clasificadores binarios desbalanceados con árbol de decisión y KNN (Cell 26)
+  - Los clasificadores binarios balanceados con RandomUnderSampler (Cell 28)
+  - La selección de características y comparación de exactitud (Cell 41)
+  - La estandarización y comparación árbol vs. KNN (Cell 42, añadida)
+- Las celdas 26 y 28 contienen scaffolds incompletos para clasificación binaria; las secciones DoS y multiclase requieren completar los experimentos; las dos últimas consignas tienen celdas de código vacías.
+- Precision, recall y F1 no están solicitadas ni importadas explícitamente por este notebook; pertenecen a la evaluación detallada del notebook ML\_Pipeline\_DT.
 - Los puntos de reflexión más importantes que la guía debe reforzar:
   1. ¿Por qué la accuracy alta no siempre significa un buen modelo? (accuracy paradox)
   2. ¿Qué ocurre cuando reducimos el número de features? (prepara para 3-feature DT)
   3. ¿Cómo el desbalanceo de clases afecta la precisión de clases minoritarias?
+  4. ¿Por qué la estandarización afecta a KNN pero no al árbol de decisión?
 - La guía puede comparar el proceso de este ejercicio con el de ML_Pipeline_DT.ipynb:
   - "En el ejercicio anterior usaron flujos de red con 47 características.
      En este ejercicio usarán paquetes IP con solo 3 características de encabezado.
@@ -203,7 +218,7 @@ Esto deja ~43 features numéricas para los clasificadores.
 
 ## Estado del notebook
 
-- ✅ Completo y funcional tal como fue entregado por los autores originales
+- ✅ Conservado tal como fue entregado por los autores originales, con actividades pendientes intencionales
 - ✅ Descarga automática del dataset en Google Colab
 - ⚠️ Verificar periódicamente que los Google Drive IDs de descarga sigan activos
 - ⚠️ Verificar que `init.py` del repositorio `rramosp/2021.deeplearning` siga disponible

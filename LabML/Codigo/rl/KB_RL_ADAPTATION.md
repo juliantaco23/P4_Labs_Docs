@@ -8,7 +8,7 @@
 | Paper base | Zheng, C., Rienecker, B. & Zilberman, N. (2023). *QCMP: Load Balancing via In-Network Reinforcement Learning*. ACM SIGCOMM FIRA Workshop. |
 | DOI | https://dl.acm.org/doi/abs/10.1145/3607504.3609291 |
 | Destino adaptado | `P4_Labs_Docs/LabML/Codigo/rl/` |
-| Rol en LabML | Ejercicio de actividad del estudiante (completa Q-table y controller) |
+| Rol en LabML | Actividad del estudiante (completa P4 y controller; q_table.py se entrega completo) |
 
 ---
 
@@ -17,10 +17,10 @@
 El ejercicio combina **Q-Learning** con un switch P4 para mitigar un ataque SYN Flood.
 
 **Funcionamiento end-to-end**:
-1. El switch P4 (s1) cuenta paquetes SYN y SYN-ACK/ACK en registros.
+1. El switch P4 (s1) cuenta SYN puros y paquetes TCP con el flag ACK activo en registros.
 2. El agente RL (controller.py) lee periódicamente esos registros via `simple_switch_CLI`.
-3. Calcula el ratio SYN/SYN-ACK → estado discretizado (0-12).
-4. Elige una acción (bloquear subred A, bloquear subred B, o no hacer nada).
+3. Calcula el exceso SYN (`syn - synack`) y lo discretiza como estado (0-12).
+4. Elige una de cuatro acciones: bloquear la subred legítima, bloquear la subred atacante, desbloquear todas las subredes o bloquear ambas.
 5. Instala/elimina una regla LPM en la tabla `firewall` del switch via CLI.
 6. Observa el nuevo estado y calcula el reward.
 7. Actualiza la Q-table con la ecuación de Bellman.
@@ -82,24 +82,27 @@ En la adaptación, toda la lógica del agente está en 2 archivos claros:
 
 ## TO-DO del estudiante
 
-### En `q_table.py`:
+### En `p4src/syn_flood_rl.p4`:
 
-| TO-DO | Función | Descripción |
+| TO-DO | Sección | Descripción |
 |---|---|---|
-| [A] | `choose_action()` | Política epsilon-greedy: con prob. ε → aleatorio, con 1-ε → argmax(Q[s]) |
-| [B] | `update()` | Ecuación de Bellman: Q(s,a) ← Q(s,a) + α[r + γ·max Q(s',·) - Q(s,a)] |
-| [C] | `decay_epsilon()` | Esquema de decaimiento: reducir ε en 0.05 cada 20 pasos, mínimo 0.05 |
-| [D] | `compute_reward()` | Función de reward: +15 éxito, -10 bloqueo incorrecto, -2 sin efecto |
-| [E] | `ratio_to_state()` | Discretizar ratio SYN/SYN-ACK en un entero de 0 a 12 |
+| [1] | `ethernet_t` | Añadir campo `bit<16> etherType` |
+| [2] | `ipv4_t` | Definir todos los campos del encabezado IPv4 (RFC 791) |
+| [3] | `tcp_t` | Definir todos los campos del encabezado TCP (RFC 793) |
+| [4] | `parse_ethernet` | Transición `select(etherType)`: TYPE_IPV4 → parse_ipv4, default → accept |
+| [5] | `parse_ipv4` | Transición `select(protocol)`: IP_PROTO_TCP → parse_tcp, default → accept |
+| [6] | `apply {}` | Lógica de contadores RL: incrementar `synReg` para SYN puro y `synAckRstReg` cuando el flag ACK está activo |
 
 ### En `controller.py`:
 
 | TO-DO | Función | Descripción |
 |---|---|---|
-| [1] | `run_cli_command()` | subprocess.run() con stdin=command → retorna stdout |
-| [2] | `read_register()` | Construir comando + regex para extraer entero de la salida |
-| [3] | `block_subnet()` | `table_add firewall block <cidr> => 1` + guardar handle |
-| [4] | `unblock_subnet()` | `table_delete firewall <handle>` + limpiar diccionario |
+| [1] | `read_register()` | Construir comando CLI + regex para extraer entero de la salida |
+| [2] | `block_subnet()` | `table_add firewall block <cidr> => 1` + guardar handle |
+| [3] | `unblock_subnet()` | `table_delete firewall <handle>` + limpiar diccionario |
+
+> **`q_table.py` se entrega completo** al estudiante (sin TODOs). Contiene la
+> Q-table, epsilon-greedy, Bellman, `compute_reward()` y `ratio_to_state()`.
 
 ---
 
@@ -146,7 +149,7 @@ Esperar: 3 respuestas ICMP con TTL=62. Si falla, las reglas de forwarding están
 
 En Mininet, el kernel de h3 responde a cada SYN con RST+ACK porque el puerto 80 no
 está abierto. Esto hace que `synAckRstReg ≈ synReg` siempre, impidiendo la detección.
-Suprimir el RST permite que el ratio SYN/SYNACK crezca durante el ataque:
+Suprimir el RST permite que el exceso `SYN - ACK` crezca durante el ataque:
 
 ```
 mininet> h3 iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
@@ -222,7 +225,7 @@ Esperar: `MyIngress.synReg[1]= 0` (o valor acumulado si el tráfico lleva tiempo
 
 ```
 # Terminal HOST (fuera de Mininet):
-python3 controller.py --interval 2 --episodes 100
+python3 controller.py --port 9090 --interval 2 --episodes 100
 
 # En Mininet (IMPORTANTE: ataque desde h2, no h1):
 mininet> h2 python3 send_attack.py --pps 50 &
@@ -262,14 +265,14 @@ Acción óptima (bloqueo selectivo del atacante):
 **Indicadores de éxito tras 50+ episodios con ataque activo:**
 - `state` cambia entre 0 (sin ataque) y valores altos (con ataque)
 - `no_action` recibe reward≤-2 durante el ataque ← fix ATTACK_THRESHOLD=10 ✅
-- `block_all` recibe reward=-10 ← correctamente penalizado ✅
+- `block_legitimate` recibe reward=-10 ← correctamente penalizado ✅
 - `block_attacker` recibe reward=+15 cuando SYN→0 y SYNACK>0 ← señal más fuerte
 - `Q(estado, 1=block_attacker)` crece con cada reward positivo
 - `ε` decrece de 0.40 hacia 0.05 (cada 20 acciones tomadas)
 
 **Q-table al final (si el entrenamiento funcionó bien, 50+ episodios):**
 ```
-  State |  block_all  block_attacker  no_action  block_both
+  State |  block_legitimate  block_attacker  no_action  block_both
       3 |    -5.xxxx        10.xxxx     -2.xxxx     -3.xxxx  ← block_attacker claramente mayor
      12 |    -0.xxxx         8.xxxx     -2.xxxx     +1.xxxx  ← block_attacker domina
 ```
@@ -288,7 +291,7 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 | `epsilon` no cambia (se queda en 0.40) | `decay_epsilon()` solo incrementa `step_count` cuando hay acciones; si state=0 siempre, no hay acciones | Es síntoma del bug de registros; se resuelve con el fix de reset |
 | Q-table final con valores cerca de 0 (−0.05 a +0.05) | Sin episodios con state>0, la Q-table es la inicialización aleatoria sin ningún aprendizaje | Confirmar que state>0 se detecta correctamente antes de entrenar |
 | `table_add firewall` falla | Ya existe una regla LPM solapada, o el handle no fue liberado de una ejecución anterior | `table_delete MyIngress.firewall <handle>` o reiniciar switch |
-| h1 también queda bloqueado | El agente eligió acción 0 (block_all) | La Q-table aprenderá que eso es incorrecto (reward -10); normal al inicio |
+| h1 queda bloqueado y h2 sigue activo | El agente eligió acción 0 (block_legitimate) | La Q-table aprenderá que eso es incorrecto (reward -10); normal al inicio |
 | BMv2 no actualiza registros entre resets | `register_reset` puede tardar un ciclo | Ya hay `time.sleep(interval)` después del reset en el controlador |
 | `ping: connect: Network is unreachable` | `configure_hosts()` usa nexthop `10.0.1.254` que está fuera del /26 de h1/h2; kernels modernos rechazan la ruta sin `onlink` | Ya corregido: se agregó `onlink` a ambos `ip route add` en topo.py |
 | send_attack no llega a h3 (h2 invisible en tcpdump) | Scapy ≥2.4.x captura `FileNotFoundError` de tcpreplay internamente, imprime el traceback pero retorna sin relanzar → nuestro `except` nunca ejecuta, fallback nunca corre; `sendpfast` depende de `tcpreplay` que no está instalado | Ya corregido: `send_attack.py` reescrito sin `sendpfast`; usa `sendp()` directamente en loop con control de tasa |
@@ -325,7 +328,7 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 |---|---|---|---|---|---|---|
 | E000–E006 | 0 | 0 | 0 | — | — | Registros limpios; ataque aún no iniciado ✅ |
 | E007 | 2 | 0 | 12 | no_action | **-2.0** | **THRESHOLD FIX FUNCIONÓ**: syn_after=31 > 10 → penalizado ✅ |
-| E008 | 27 | 2 | 3 | block_all | **-10.0** | Penalizado: bloqueó h1 Y h2 (handle 0) ✅ |
+| E008 | 27 | 2 | 3 | block_legitimate | **-10.0** | Penalizado: bloqueó h1 pero no h2 (handle 0) ✅ |
 | E009 | 34 | 0 | 12 | block_both | **+5.0** | Ataque detenido (SYN→0) pero también bloqueó legítimo (SYNACK=0 → +5 no +15) |
 
 `*** Attack MITIGATED in episode 9 ***` ✅ — `next_state=0 and reward=+5 > 0`
@@ -333,9 +336,9 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 ### Q-table tras 3 episodios activos
 
 ```
-  State |      block_all  block_attacker       no_action      block_both
+  State | block_legitimate  block_attacker       no_action      block_both
 ------------------------------------------------------------------------
-      3 |        -1.9686         -0.0290          -0.0320         -0.0320  ← block_all penalizado ✅
+      3 |        -1.9686         -0.0290          -0.0320         -0.0320  ← block_legitimate penalizado ✅
      12 |         0.0050         -0.0320          -0.3539          1.0305  ← no_action penalizado ✅, block_both recompensado
 ```
 
@@ -351,7 +354,7 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 ### Observaciones pedagógicas
 
 **Lo que aprendió el agente en 3 episodios:**
-- `block_all` es incorrecto (Q=-1.97 en state=3) — aprendió a evitarlo ✅
+- `block_legitimate` es incorrecto (Q=-1.97 en state=3) — aprendió a evitarlo ✅
 - `no_action` durante ataque es incorrecto (Q=-0.35 en state=12) — aprendió a evitarlo ✅
 - `block_both` detiene el ataque pero también bloquea al legítimo → reward=+5 (no ideal)
 
@@ -380,7 +383,7 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 | `receive_counters.py` | `controller.py` (bucle principal) | **Fusionado + reescrito**: le\u00eda contadores via gRPC y los enviaba a h4 via MRI. Adaptado: lee registros via subprocess CLI, elimina dependencia de MRI/h4, integra el bucle RL. |
 | `get_counters.py` | `controller.py` (`read_register()`) | **Fusionado**: el original extraa contadores via P4Runtime. Reemplazado por `read_register()` usando `register_read` de simple_switch_CLI + regex. |
 | `tcpsession.py` | \u2014 (sin equivalente) | **Eliminado**: gestionaba la sesi\u00f3n gRPC (conexiones a puertos 50051-50056). No necesario \u2014 `simple_switch_CLI` es stateless (Thrift ef\u00edmero por llamada). |
-| `q_table.py` | `q_table.py` | **Adaptado directamente**: misma estructura numpy. Cambios: `compute_reward()` reescrita para SYN Flood; `ratio_to_state()` cambiada a f\u00f3rmula de exceso (syn-synack); `ATTACK_THRESHOLD` corregido de 50 a 10; TO-DOs a\u00f1adidos para el estudiante. |
+| `q_table.py` | `q_table.py` | **Adaptado directamente**: misma estructura numpy. Cambios: `compute_reward()` reescrita para SYN Flood; `ratio_to_state()` cambiada a fórmula de exceso (syn-synack); `ATTACK_THRESHOLD` corregido de 50 a 10. **Se entrega completo al estudiante (sin TODOs)**. |
 | `send_attack.py` | `send_attack.py` | **Adaptado**: eliminado `sendpfast` (requiere tcpreplay no disponible); reemplazado por loop `sendp()` con control de tasa. IP fuente: `10.0.1.82`. |
 | `update_entries.sh` | `controller.py` (`block_subnet()` / `unblock_subnet()`) | **Migrado a Python**: el bash script llamaba `table_add`/`table_delete`. Reemplazado por funciones Python que usan subprocess y conservan los handles para poder deshacer. |
 | `reset_registers.sh` | `reset_registers.sh` | **Adaptaci\u00f3n m\u00ednima**: el original usaba P4Runtime. Adaptado para `simple_switch_CLI <<< "register_reset ..."`. |
@@ -389,9 +392,9 @@ Si todos los valores siguen cercanos a 0 → no hubo episodios con state>0 → r
 
 ## Lo que el estudiante NO debe ver en la entrega
 
-Los archivos `q_table.py` y `controller.py` contienen las soluciones completas
+Los archivos `p4src/syn_flood_rl.p4` y `controller.py` contienen las soluciones completas
 con los TO-DO visibles. Para la versión del estudiante, entregar solo el esqueleto
-con los TO-DO pero sin el bloque `SOLUTION:`.
+con los TO-DO pero sin el bloque `SOLUTION:`. `q_table.py` se entrega completo tal cual.
 
 **Nota de seguridad para futuras versiones**: El ejercicio de bloqueo de subredes
 tiene implicaciones reales en redes de producción. El material está diseñado
@@ -472,7 +475,7 @@ El problema se formaliza como un MDP de horizonte finito:
 | Componente MDP | Implementación |
 |----------------|----------------|
 | **Estado** s | `ratio_to_state(synReg, synAckRstReg)` → entero [0, 12] |
-| **Acción** a | {0=block_all, 1=block_attacker, 2=no_action, 3=block_both} |
+| **Acción** a | {0=block_legitimate, 1=block_attacker, 2=no_action/unblock_all, 3=block_both} |
 | **Transición** T(s, a, s') | Determinada por el efecto de la regla firewall en el tráfico real — estocástica (el ataque puede variar) |
 | **Reward** R(s, a, s') | +15 si ataque detenido con legítimo circulando; +5 parcial; -2 sin efecto; -10 si bloqueó tráfico legítimo |
 | **Política** π | ε-greedy sobre la Q-table |
@@ -480,16 +483,16 @@ El problema se formaliza como un MDP de horizonte finito:
 
 ### Discretización del estado
 
-El estado continuo (ratio SYN/SYN-ACK) se convierte a un entero:
+El estado se obtiene del exceso de SYN respecto a los paquetes con ACK observado:
 
 ```python
-ratio = syn_count / synack_count
-state = int(min(ratio, 12))
+excess = syn_count - synack_count
+state = min(int(excess / 10) + 1, 12)
 ```
 
-- Estado 0: ratio < 1 → tráfico normal
-- Estado 1-11: ratio creciente → ataque moderado a severo
-- Estado 12: ratio > 12 o synack=0 → ataque masivo (ningún handshake completado)
+- Estado 0: no hay exceso de SYN (`syn_count <= synack_count`) o no hay tráfico.
+- Estados 1-11: exceso de SYN creciente.
+- Estado 12: hay SYN sin ningún ACK observado o el exceso alcanza el límite superior.
 
 Esta discretización es necesaria porque Q-Learning clásico usa una tabla (no una red neuronal) — requiere espacio de estados finito y manejable.
 
@@ -546,7 +549,7 @@ Resuelve el dilema **exploración vs. explotación**:
 El ataque SYN Flood explota el three-way handshake TCP:
 - El atacante envía miles de SYN sin completar el handshake (no envía ACK)
 - El servidor reserva recursos (half-open connections) por cada SYN
-- Sin SYN-ACK correspondiente, el ratio SYN/SYN-ACK crece → estado del agente aumenta
+- Sin paquetes con ACK que compensen los SYN, el exceso `SYN - ACK` crece → el estado del agente aumenta
 
 El switch P4 puede **contar** paquetes SYN y SYN-ACK en registros. Esta observación pasiva (sin interceptar el tráfico) es el mecanismo de telemetría del agente.
 
@@ -589,11 +592,11 @@ La separación entre h1 (10.0.1.0/26) y h2 (10.0.1.64/26) en subredes distintas 
 
 2. **Mitigación autónoma sin reglas predefinidas**: un firewall tradicional requiere que el administrador defina explícitamente qué IPs bloquear. El agente RL descubre por sí solo que `10.0.1.64/26` es la subred correcta a bloquear — basándose solo en el feedback de los registros.
 
-3. **Tolerancia a la incertidumbre**: el entorno es estocástico (el atacante puede variar la tasa de envío). El agente aprende una política robusta que funciona aunque el ratio SYN/SYN-ACK no sea exactamente el mismo cada vez.
+3. **Tolerancia a la incertidumbre**: el entorno es estocástico (el atacante puede variar la tasa de envío). El agente aprende una política robusta aunque el exceso `SYN - ACK` no sea exactamente el mismo cada vez.
 
 4. **Concepto de reward shaping**: el diseño de la función de reward es un problema no trivial. El ejercicio muestra que:
    - Reward mal diseñado → agente aprende comportamiento subóptimo
-   - La penalización de acción 0 (block_all=-10) es **hardcoded** como garantía de no bloquear tráfico legítimo, independientemente del estado
+  - La penalización de acción 0 (block_legitimate=-10) es **hardcoded** como garantía de no bloquear tráfico legítimo, independientemente del estado
 
 5. **Online learning vs. offline learning**: la distinción pedagógica clave entre DT (frozen model) y RL (living model). En producción, el RL es apropiado cuando el entorno cambia y no se dispone de datos etiquetados históricos suficientes.
 
@@ -602,13 +605,13 @@ La separación entre h1 (10.0.1.0/26) y h2 (10.0.1.64/26) en subredes distintas 
 ## Notas para el LaTeX (LabML.tex)
 
 - El ejercicio RL es la **actividad del estudiante** del LabML (DT es el ejercicio guiado).
-- Los 5 TODOs de `q_table.py` y 4 de `controller.py` están pensados para que el estudiante entienda los mecanismos de Q-Learning antes de ver el sistema completo funcionando.
+- El ejercicio RL combina trabajo en P4 (`syn_flood_rl.p4`, TODOs [1]–[6]) y Python (`controller.py`, TODOs [1]–[3]). `q_table.py` se entrega completo.
 - La secuencia pedagógica recomendada:
-  1. Completar `q_table.py` (lógica RL pura — sin P4)
+  1. Completar `syn_flood_rl.p4` (headers + parser + contadores)
   2. Completar `controller.py` (interfaz P4 — sin ML)
   3. Integrar y validar con el ataque real
 - La función de reward es intencionalemente discutible — hay varias formas válidas de diseñarla. Puede usarse como pregunta de reflexión en el lab.
-- El P4 (`syn_flood_rl.p4`) **no tiene TODOs** — está completo. El reto es Python.
+- El P4 (`syn_flood_rl.p4`) **tiene 6 TODOs** (headers, parser, contadores RL) que el estudiante debe completar antes de compilar.
 - El paper base es QCMP (Zheng et al., 2023, ACM SIGCOMM FIRA) — aborda load balancing con RL, pero la adaptación cambia el problema a mitigación de SYN Flood para mayor claridad pedagógica.
 - Instrucciones de color: verde=bash, azul=Python, rojo=Mininet, naranja=P4.
 - **Diagrama recomendado**: el bucle de control (switch → registers → controller → q_table → firewall rules → switch) debe ilustrarse con un diagrama de ciclo en el LaTeX.

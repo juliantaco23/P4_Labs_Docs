@@ -12,7 +12,7 @@ A Decision Tree is a hierarchical classifier that splits data based on feature t
 In a P4 switch, **Match/Action tables with range matching** are computationally equivalent
 to the decision nodes of a tree: each table entry represents a conditional branch.
 
-**Core concept** (Xiong & Zilberman, 2021):
+**Core concept** (Xiong & Zilberman, 2019, IIsy):
 ```
 sklearn DT node: "if TCP.srcPort <= 1023 → class A"
 P4 range rule:   feature2_exact | srcPort: 0->1023 => set_actionselect2(1)
