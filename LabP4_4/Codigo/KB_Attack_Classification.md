@@ -7,12 +7,12 @@
 
 ---
 
-## Rol en el laboratorio LabML
+## Rol en el laboratorio LabP4_4
 
 | Ítem | Valor |
 |---|---|
-| Archivo | `LabML/Codigo/Attack_Clasification.ipynb` |
-| Rol en LabML | **Ejercicio 1** — introducción guiada a Machine Learning supervisado |
+| Archivo | `LabP4_4/Codigo/Attack_Clasification.ipynb` |
+| Rol en LabP4_4 | **Ejercicio 1** — introducción guiada a Machine Learning supervisado |
 | El estudiante recibe | ✅ Sí — notebook original con scaffolds y celdas pendientes, preparado para Google Colab |
 | Prerrequisito | Ninguno (es el primer ejercicio del laboratorio ML) |
 | Conecta con | Ejercicio 2 (ML_Pipeline_DT.ipynb) — mismos conceptos ML aplicados a tráfico IoT |
@@ -151,7 +151,7 @@ P4 solo puede acceder a 3 campos del encabezado del paquete sin estado de flujo.
 ## Conceptos pedagógicos establecidos para los ejercicios posteriores
 
 Este notebook establece el vocabulario y la intuición ML que el estudiante necesita
-para los ejercicios 2–4 del LabML:
+para los ejercicios 2–4 del LabP4_4:
 
 | Concepto establecido aquí | Uso en los ejercicios siguientes |
 |---|---|
@@ -194,7 +194,7 @@ Esto deja ~43 features numéricas para los clasificadores.
 
 ---
 
-## Notas para la redacción de la guía de laboratorio (LabML.tex)
+## Notas para la redacción de la guía de laboratorio (LabP4_4.tex)
 
 - El notebook incluye código de preparación, pero el estudiante debe implementar:
   - Los boxplots exploratorios (Cell 16)

@@ -7,8 +7,8 @@
 | Fuente original | `ONOSP4-tutorial/Demo-RL/` (GITA, Universidad de Antioquia) |
 | Paper base | Zheng, C., Rienecker, B. & Zilberman, N. (2023). *QCMP: Load Balancing via In-Network Reinforcement Learning*. ACM SIGCOMM FIRA Workshop. |
 | DOI | https://dl.acm.org/doi/abs/10.1145/3607504.3609291 |
-| Destino adaptado | `P4_Labs_Docs/LabML/Codigo/rl/` |
-| Rol en LabML | Actividad del estudiante (completa P4 y controller; q_table.py se entrega completo) |
+| Destino adaptado | `P4_Labs_Docs/LabP4_4/Codigo/rl/` |
+| Rol en LabP4_4 | Actividad del estudiante (completa P4 y controller; q_table.py se entrega completo) |
 
 ---
 
@@ -120,7 +120,7 @@ En la adaptación, toda la lógica del agente está en 2 archivos claros:
 
 ### Paso 1 — Compilación
 ```bash
-cd P4_Labs_Docs/LabML/Codigo/rl
+cd P4_Labs_Docs/LabP4_4/Codigo/rl
 mkdir -p p4src/build
 p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/syn_flood_rl.p4
 ```
@@ -602,9 +602,9 @@ La separación entre h1 (10.0.1.0/26) y h2 (10.0.1.64/26) en subredes distintas 
 
 ---
 
-## Notas para el LaTeX (LabML.tex)
+## Notas para el LaTeX (LabP4_4.tex)
 
-- El ejercicio RL es la **actividad del estudiante** del LabML (DT es el ejercicio guiado).
+- El ejercicio RL es la **actividad del estudiante** del LabP4_4 (DT es el ejercicio guiado).
 - El ejercicio RL combina trabajo en P4 (`syn_flood_rl.p4`, TODOs [1]–[6]) y Python (`controller.py`, TODOs [1]–[3]). `q_table.py` se entrega completo.
 - La secuencia pedagógica recomendada:
   1. Completar `syn_flood_rl.p4` (headers + parser + contadores)

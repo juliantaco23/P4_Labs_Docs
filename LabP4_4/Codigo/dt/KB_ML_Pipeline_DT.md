@@ -4,8 +4,8 @@
 
 | Item | Valor |
 |---|---|
-| Archivo | `LabML/Codigo/dt/ML_Pipeline_DT.ipynb` |
-| Rol en LabML | Ejercicio 2 — el estudiante observa y ejecuta el pipeline completo |
+| Archivo | `LabP4_4/Codigo/dt/ML_Pipeline_DT.ipynb` |
+| Rol en LabP4_4 | Ejercicio 2 — el estudiante observa y ejecuta el pipeline completo |
 | El estudiante recibe | ✅ Sí — notebook completo y ejecutable |
 | Prerrequisito | Ejercicio 1 (Attack_Clasification.ipynb) — fundamentos de ML supervisado |
 | Genera | `tree_L3_generado.txt`, `tree_L4_generado.txt` |
@@ -306,7 +306,7 @@ Solo referencia interna para el docente; el estudiante recibe los CSV directamen
 
 ---
 
-## Notas para la redacción de la guía de laboratorio (LabML.tex)
+## Notas para la redacción de la guía de laboratorio (LabP4_4.tex)
 
 - El estudiante ejecuta este notebook de forma guiada; **no hay TODOs de código**
 - El docente debe proveer el dataset (Google Drive recomendado)

@@ -7,8 +7,8 @@
 | Fuente original | `ONOSP4-tutorial/DecisionTrees2/` (GITA, Universidad de Antioquia) |
 | Paper y artefacto base | Xiong, Z. & Zilberman, N. (2019). *Do Switches Dream of Machine Learning? Toward In-Network Classification*; repositorio IIsy (`cucl-srg/IIsy`). |
 | Repositorio GITA | https://github.com/grupogita/ONOSP4-tutorial |
-| Destino adaptado | `P4_Labs_Docs/LabML/Codigo/dt/` |
-| Rol en LabML | Ejercicio 3 — guiado (el estudiante completa los TO-DO del código P4) |
+| Destino adaptado | `P4_Labs_Docs/LabP4_4/Codigo/dt/` |
+| Rol en LabP4_4 | Ejercicio 3 — guiado (el estudiante completa los TO-DO del código P4) |
 
 `DecisionTrees2` es la fuente docente inmediata del esqueleto usado en este laboratorio y su README cita el trabajo de HotNets 2019. El código de extracción `get_lineage`, el formato textual de reglas y la estructura de tablas provienen del artefacto IIsy asociado a ese trabajo. El artículo de 2024 *IIsy: Hybrid In-Network Classification Using Programmable Switches* es una publicación posterior con otro artefacto y no es la fuente del código de esta adaptación.
 
@@ -206,7 +206,7 @@ TO-DO en `dt_switch.p4`, e instalar las reglas resultantes.
 
 ### Compilación
 ```bash
-cd P4_Labs_Docs/LabML/Codigo/dt
+cd P4_Labs_Docs/LabP4_4/Codigo/dt
 mkdir -p p4src/build
 p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/dt_switch.p4
 # Expected: no errors. If "empty header" errors appear, check TO-DO [2]/[3].

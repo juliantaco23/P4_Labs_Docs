@@ -1,4 +1,4 @@
-root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# sudo python3 mininet/topo.py
+root@p4:/home/p4/P4_Labs_Docs/LabP4_4/Codigo/rl# sudo python3 mininet/topo.py
 *** Creating network
 *** Adding hosts:
 h1 h2 h3 h4 

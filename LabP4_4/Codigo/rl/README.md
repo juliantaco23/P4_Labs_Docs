@@ -34,7 +34,7 @@ preserving legitimate traffic from h1 (in 10.0.1.0/26).
 ## Step 1: Compile the P4 program
 
 ```bash
-cd P4_Labs_Docs/LabML/Codigo/rl
+cd P4_Labs_Docs/LabP4_4/Codigo/rl
 mkdir -p p4src/build
 p4c-bm2-ss --p4v 16 -o p4src/build/bmv2.json p4src/syn_flood_rl.p4
 ```

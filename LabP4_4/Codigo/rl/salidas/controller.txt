@@ -1,4 +1,4 @@
-root@p4:/home/p4/P4_Labs_Docs/LabML/Codigo/rl# python3 controller.py --interval 2 --episodes 200
+root@p4:/home/p4/P4_Labs_Docs/LabP4_4/Codigo/rl# python3 controller.py --interval 2 --episodes 200
 [RL] Agent started. Thrift port: 9090
 [RL] Episodes: 200, Interval: 2.0s
 
