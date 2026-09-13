@@ -130,7 +130,7 @@ Esperar: sin errores.
 ```bash
 sudo python3 mininet/topo.py
 ```
-Esperar: prompt `mininet>` con s1 (thrift 9090), s2 (thrift 9091), h1–h4.
+Esperar: prompt `mininet>` con s1 (thrift 9090), s2 (thrift 9091), h1–h3.
 
 ### Paso 3 — Reglas de forwarding
 ```bash

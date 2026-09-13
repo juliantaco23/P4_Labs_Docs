@@ -20,13 +20,12 @@ turning the data plane into an adaptive, learning-capable element.
 ```
 h1 (10.0.1.1/26)   ──port1──┐                ┌──port1── h3 (10.0.6.1)  [server]
 h2 (10.0.1.82/26)  ──port2──┤ s1 ──port3─2── s2
-                              └──port4── h4   (monitoring)
+                              
 ```
 
 - **h1** (10.0.1.1): legitimate client, in subnet 10.0.1.0/26
 - **h2** (10.0.1.82): attacker, in subnet **10.0.1.64/26**
 - **h3** (10.0.6.1): HTTP server
-- **h4** (10.0.4.1): monitoring host
 
 The agent learns that blocking **10.0.1.64/26** stops the attack (h2) while
 preserving legitimate traffic from h1 (in 10.0.1.0/26).

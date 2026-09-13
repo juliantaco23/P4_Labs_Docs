@@ -1,13 +1,13 @@
 root@p4:/home/p4/P4_Labs_Docs/LabP4_4/Codigo/rl# sudo python3 mininet/topo.py
 *** Creating network
 *** Adding hosts:
-h1 h2 h3 h4 
+h1 h2 h3
 *** Adding switches:
 s1 s2 
 *** Adding links:
-(s1, h1) (s1, h2) (s1, h4) (s1, s2) (s2, h3) 
+(s1, h1) (s1, h2) (s1, s2) (s2, h3) 
 *** Configuring hosts
-h1 h2 h3 h4 
+h1 h2 h3
 *** Starting controller
 
 *** Starting 2 switches
