@@ -1,7 +1,7 @@
 # VLAN Exercise — Adaptation Knowledge Base
 
 ## Origen
-- **Fuente original**: Ejercicio diseñado para el curso "Internet del Futuro" (Trabajo de Grado — Julian Tamara)
+- **Fuente original**: Basado en Exercise-4 del repositorio del curso GITA ONOSP4
 - **Destino**: `P4_Labs_Docs/LabP4_2/Codigo/VLAN/`
 - **Rol en LabP4_2**: Ejercicio de actividad del estudiante (el ejercicio guiado es ECN en `Codigo/ecn/`)
 
