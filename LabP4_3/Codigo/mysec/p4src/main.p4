@@ -281,37 +281,14 @@ control EgressPipeImpl (inout parsed_headers_t hdr,
                 HINT: Support yourself on the image shown in the approach of the exercise.
             - Modify the space corresponding to the destination ethernet address using a hexadecimal number of your choice
             */ 
-            if (standard_metadata.ingress_port == local_metadata.port1 && hdr.mysec.ingress_port == 1 && hdr.mysec.egres_port == 1){
-                hdr.mysec.process_time_sw1 = standard_metadata.egress_global_timestamp - standard_metadata.ingress_global_timestamp;
-                hdr.mysec.egress_time_sw1 = standard_metadata.egress_global_timestamp;
-                hdr.mysec.ingress_port = 2;
-                hdr.mysec.egres_port = 1;
-
-                /* Exercise 3 TO-DO (Part 2 — Additional Metrics)
-                - Replace <Equation> to record the ingress timestamp of s1 on the return path.
-                - Replace <Equation> to compute the total processing time across both directions.
-                - Replace <Condition> to set the threshold flag based on the total value.
-                */
-                // hdr.mysec.ingress_back_time_sw1 = <Equation>;
-                // hdr.mysec.total                 = <Equation>;
-                // if (<Condition>) { hdr.mysec.th = 1; } else { hdr.mysec.th = 0; }
-
-                // --- SOLUTION ---
-                hdr.mysec.ingress_back_time_sw1 = standard_metadata.ingress_global_timestamp;
-                hdr.mysec.total = hdr.mysec.process_time_sw1 + hdr.mysec.process_time_sw2;
-                if (hdr.mysec.total > 5000) { 
-                    hdr.mysec.th = 1; 
-                } else { 
-                    hdr.mysec.th = 0; 
-                    }
-            }
-        
-            else if (standard_metadata.ingress_port == 1 && hdr.mysec.ingress_port == 1 && hdr.mysec.egres_port == 2){
-                hdr.mysec.process_time_sw2 = standard_metadata.egress_global_timestamp - standard_metadata.ingress_global_timestamp;
-                hdr.ethernet.dst_addr = 0x000000000001;
-                hdr.mysec.ingress_port = 1;
-                hdr.mysec.egres_port = 1;
-            }
+            /* Exercise 3 TO-DO (Part 2 — Additional Metrics)
+            - Replace <Equation> to record the ingress timestamp of s1 on the return path.
+            - Replace <Equation> to compute the total processing time across both directions.
+            - Replace <Condition> to set the threshold flag based on the total value.
+            */
+            // hdr.mysec.ingress_back_time_sw1 = <Equation>;
+            // hdr.mysec.total                 = <Equation>;
+            // if (<Condition>) { hdr.mysec.th = 1; } else { hdr.mysec.th = 0; }
             
         }
         	

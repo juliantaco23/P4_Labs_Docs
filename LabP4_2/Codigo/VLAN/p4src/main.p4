@@ -18,8 +18,6 @@ These numbers must be unique and fall within the range of 000 to FFF.
   -HINT: You can use any online hexadecimal converter tool to convert 
   decimal numbers into hexadecimal format.
 */
-const bit<12> VLAN_10 = 0x00a;  //VLAN ID 10 in hexadecimal
-const bit<12> VLAN_20 = 0x014; //VLAN ID 20 in hexadecimal
 
 /* Exercise 4 TO-DO — DSCP Marking
 Define two DSCP values (6-bit constants, range 0–63) to assign a different 
@@ -28,8 +26,6 @@ field so that downstream devices can apply QoS policies per VLAN.
   - HINT: Use values that are easy to recognize in captures, e.g., 10 for
     VLAN 10 (DSCP AF11) and 20 for VLAN 20 (DSCP AF21).
 */
-const bit<6> DSCP_VLAN_10 = 10;  // AF11 — traffic class for VLAN 10
-const bit<6> DSCP_VLAN_20 = 20;  // AF21 — traffic class for VLAN 20
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //+++++++++++++++++++++++++++ HEADER DEFINITIONS ++++++++++++++++++++++++++
@@ -235,13 +231,6 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
                   - NOTE: Only mark DSCP if the IPv4 header is valid 
                     (hdr.ipv4.isValid()), since non-IP frames won't have it.
                 */
-                if (hdr.ipv4.isValid()) {
-                        if (standard_metadata.ingress_port == 1) {
-                                hdr.ipv4.dscp = DSCP_VLAN_10;
-                        } else if (standard_metadata.ingress_port == 2) {
-                                hdr.ipv4.dscp = DSCP_VLAN_20;
-                        }
-                }
 
                 standard_metadata.egress_spec = port_num; //egress port
         }
@@ -282,7 +271,6 @@ control IngressPipeImpl(inout parsed_headers_t    hdr,
                         will need to include a P4 statement that pops the 
                         VLAN header from the packet header stack.
                         */
-                        hdr.vlan_802_1q.setInvalid(); //Removes the vlan header
                 }else{
                         mark_to_drop(standard_metadata);
                 }
@@ -332,23 +320,6 @@ control ComputeChecksumImpl(inout parsed_headers_t hdr,
           - HINT: Look at how the ECN exercise implements this in ecn.p4.
         */
         apply {
-                update_checksum(
-                        hdr.ipv4.isValid(),
-                        { hdr.ipv4.version,
-                          hdr.ipv4.ihl,
-                          hdr.ipv4.dscp,
-                          hdr.ipv4.ecn,
-                          hdr.ipv4.total_len,
-                          hdr.ipv4.identification,
-                          hdr.ipv4.flags,
-                          hdr.ipv4.frag_offset,
-                          hdr.ipv4.ttl,
-                          hdr.ipv4.protocol,
-                          hdr.ipv4.src_addr,
-                          hdr.ipv4.dst_addr },
-                        hdr.ipv4.hdr_checksum,
-                        HashAlgorithm.csum16
-                );
         }
 }
 

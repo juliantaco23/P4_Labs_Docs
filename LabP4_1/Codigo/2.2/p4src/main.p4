@@ -24,17 +24,13 @@ typedef bit<32>  ipv4_addr_t;
 typedef bit<16>  l4_port_t;
 
 
-// Exercise 2.1 TO-DO: Define values for these constants representing
-// the Ethertype codes
 const bit<16> ETHERTYPE_IPV4 = 0x0800;
 const bit<16> ETHERTYPE_ARP = 0x0806;
 
-const bit<8> IP_PROTO_TCP    = 6;
+// Exercise 2.2 TO-DO: Define the symbolic constant for the TCP protocol
+// number, i.e. the value carried in the protocol field of the IPv4 header
+// for a TCP segment (see RFC 793).
 
-/*
-    Exercise 2.1 TO-DO: Define symbolic constants for different ARP fields.
-    Refer to RFC 826 for the sizes and reference values.
-*/
 const bit<16> ARP_HTYPE = 0x0001; //Ethernet Hardware type is 1
 const bit<16> ARP_PTYPE = ETHERTYPE_IPV4; //Protocol used for ARP is IPV4
 const bit<8>  ARP_HLEN  = 6; //Ethernet address size is 6 bytes
@@ -61,14 +57,18 @@ header ethernet_t {
 
 
 /*
-  Exercise 2.1 TO-DO: Define a type for the header of an ARP packet.
-  Remember that an ARP packet contains the following fields:
-  Hardware Type, Prtocol Type, Hardware Length, Protocol Length,
-  Operation Code, Source Hardware Address, Source Protocol Address,
-  Target Hardware Address and Target Potocol Address.
-  Refer to RFC 826 for the details on each of these fields
+  ARP packet header per RFC 826.
+  Field order and bit widths match the wire format exactly:
+    h_type  : hardware type (16b)  - 1 for Ethernet
+    p_type  : protocol type (16b)  - 0x0800 for IPv4
+    h_len   : hw addr length (8b)  - 6 bytes for MAC
+    p_len   : proto addr length (8b)- 4 bytes for IPv4
+    op_code : operation (16b)      - 1=request, 2=reply
+    src_mac : sender hardware addr (48b)
+    src_ip  : sender protocol addr (32b)
+    dst_mac : target hardware addr (48b)
+    dst_ip  : target protocol addr (32b) - used as key in arp_exact table
 */
-
 header arp_t {
   bit<16>   h_type;
   bit<16>   p_type;
@@ -105,24 +105,32 @@ header ipv4_t {
     recommended to create individual fields for the six operation
     bits of the protocol. Keep in mind that these fields must be
     defined in order.
+
+    The rest of the program (ComputeChecksumImpl) already refers to
+    the fields of this header, so the names and the order below are
+    mandatory. The widths of the fields that make up the first part
+    of the header must add up to 16 bits, since they are packed
+    together in the same 16-bit word of the TCP header:
+
+        src_port    bit<16>   source port
+        dst_port    bit<16>   destination port
+        seq_no      bit<32>   sequence number
+        ack_no      bit<32>   acknowledgment number
+        data_offset bit<4>    data offset (header length in 32-bit words)
+        res         bit<3>    reserved
+        ecn         bit<3>    ECN / NS bits
+        urg         bit<1>    URG flag
+        ack         bit<1>    ACK flag
+        psh         bit<1>    PSH flag
+        rst         bit<1>    RST flag
+        syn         bit<1>    SYN flag
+        fin         bit<1>    FIN flag
+        window      bit<16>   window size
+        checksum    bit<16>   checksum
+        urgent_ptr  bit<16>   urgent pointer
 */
 header tcp_t {
-    bit<16> src_port;
-    bit<16> dst_port;
-    bit<32> seq_no;
-    bit<32> ack_no;
-    bit<4>  data_offset;
-    bit<3>  res;
-    bit<3>  ecn;
-    bit<1>  urg;
-    bit<1>  ack;
-    bit<1>  psh;
-    bit<1>  rst;
-    bit<1>  syn;
-    bit<1>  fin;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgent_ptr;
+    // Exercise 2.2 TO-DO: define the RFC 793 TCP fields listed above.
 }
 
 // Description taken from NGSDN-TUTORIAL
@@ -151,13 +159,9 @@ struct parsed_headers_t {
     cpu_out_header_t cpu_out;
     cpu_in_header_t cpu_in;
     ethernet_t ethernet;
-    /*
-        Exercise 2.1 TO-DO: Include the ARP header in the set of
-        headers recognized by this switch.
-    */
     arp_t arp;
     ipv4_t ipv4;
-    tcp_t tcp;
+    // Exercise 2.2 TO-DO: add the TCP header instance.
 }
 
 struct local_metadata_t {
@@ -198,16 +202,6 @@ parser ParserImpl (packet_in packet,
         transition parse_ethernet;
     }
 
-    /*
-        Exercise 2.1 TO-DO: Perform three changes to the parse_ethernet
-        state:
-             1. Create a transition selection based on the ether_type field
-                of the ethernet header. (Hint: use the P4 transition select
-                construct)
-             2. For IPv4 packets, transition to the parse_ipv4 state
-             3. For ARP packets, trasition to the parse_arp state.
-             Note: Leave the parse_ipv4 state as default transition
-    */
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.ether_type){
@@ -217,13 +211,6 @@ parser ParserImpl (packet_in packet,
         }
     }
 
-    /*
-        Exercise 2.1 TO-DO: Define the parse_arp state which should
-        perform the following two things:
-        1. Extract the arp header from the packet
-        2. Create a transition selection based on the ARP Operation
-           code in such a way that only ARP requestes get accepted
-    */
     state parse_arp {
         packet.extract(hdr.arp);
         transition select(hdr.arp.op_code) {
@@ -240,26 +227,23 @@ parser ParserImpl (packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        local_metadata.l4Len = hdr.ipv4.total_len - ((bit<16>)hdr.ipv4.ihl << 2);
-        transition select(hdr.ipv4.protocol) {
-            IP_PROTO_TCP: parse_tcp;
-            default: accept;
-        }
+        // Exercise 2.2 TO-DO: add the protocol transition described above.
 
     }
 
-    state parse_tcp {
-        packet.extract(hdr.tcp);
-        local_metadata.is_tcp_syn = hdr.tcp.syn;
-        local_metadata.tcp_src_port = hdr.tcp.src_port;
-        local_metadata.tcp_dst_port = hdr.tcp.dst_port;
-        local_metadata.tcp_seq_no = hdr.tcp.seq_no;
-        local_metadata.ip_src_addr = hdr.ipv4.src_addr;
-        local_metadata.ip_dst_addr = hdr.ipv4.dst_addr;
-        local_metadata.eth_src_addr = hdr.ethernet.src_addr;
-        local_metadata.eth_dst_addr = hdr.ethernet.dst_addr;
-        transition accept;
-    }
+    /*
+        Exercise 2.2 TO-DO: Define the parse_tcp state. It must:
+        1. Extract the TCP header from the packet.
+        2. Compute local_metadata.l4Len, i.e. the length of the TCP
+           segment in bytes. It is obtained from the IPv4 header as
+           total_len minus the length of the IPv4 header in bytes
+           (ihl * 4).
+        3. Copy into local_metadata the TCP values that the ingress
+           control needs later on: is_tcp_syn, tcp_src_port,
+           tcp_dst_port, tcp_seq_no, ip_src_addr, ip_dst_addr,
+           eth_src_addr and eth_dst_addr.
+    */
+    // Exercise 2.2 TO-DO: define parse_tcp and preserve needed metadata.
 
 
 }
@@ -346,33 +330,6 @@ control IngressPipeImpl (inout parsed_headers_t    hdr,
         counters = direct_counter(CounterType.packets_and_bytes);
     }
 
-    /*
-        Exercise 2.1 TO-DO: Create an action to build an ARP reply.
-        The name of this action will be arp_reply.
-        This action will receive a MAC address provided by the
-        table match. Keep in mind the following things for this
-        action
-
-        1. The operation code is the one corresponding to an ARP
-           reply.
-        2. The Target Hardware Address will be set to the source
-           MAC address.
-        3. The Source Hardware Address will be set to the MAC address
-           provided by the table match (i.e. the parameter of the
-           action).
-        4. The Source Protocol Address will be set to the
-           Target Protocol Address contained in the request
-        5. The destination address of the Ethernet header will be set
-           to its source address (to create a reply).
-        6. The source address of the Ethernet header will be set to
-           the MAC address provided by the table match (i.e. the
-           parameter of the action).
-        7. Return the reply to the same port where it came from by
-           setting the egress_spec field of the standard_metadata
-           structure. (Hint: The ingress port is available in the
-           ingress_port field of these structure, and it has been set
-           at the ParserImpl)
-    */
     action arp_reply(mac_addr_t request_mac) {
       //update operation code from request to reply
       hdr.arp.op_code = ARP_REPLY;
@@ -395,16 +352,6 @@ control IngressPipeImpl (inout parsed_headers_t    hdr,
 
     }
 
-    /*
-        Exercise 2.1 TO-DO: Define the arp_exact table. This table
-        will be composed of a key to match the Target Protocol Address
-        field of the ARP header, in exact way. The actions for this
-        table will be the arp_reply, and the drop action. The drop
-        action will be the default action. Optionally, you might want
-        to add a counter to the table to make easier the debugging. You
-        can use as example the counter defined for the acl_table.
-    */
-
     table arp_exact {
       key = {
         hdr.arp.dst_ip: exact;
@@ -420,26 +367,20 @@ control IngressPipeImpl (inout parsed_headers_t    hdr,
 
     /*
         Exercise 2.2 TO-DO: Create a table to record the TCP Sessions validated
-        by the controller.
-        1. The key of this table contains the IP addresses and the TCP ports. 
-           These fields must be exactly matched.
-        2. This table does not have an action. That is, it must include the special
-           NoAction action.
+        by the controller. The table must be named tcp_sessions and its key
+        contains the IP addresses and the TCP ports, all of them matched
+        exactly and in this order:
+            1. hdr.ipv4.src_addr
+            2. hdr.tcp.src_port
+            3. hdr.ipv4.dst_addr
+            4. hdr.tcp.dst_port
+        The only action of the table is the special NoAction action, so a
+        match means "this session is registered and the packet can be
+        forwarded". The default action must be drop, so that any packet
+        belonging to a session that was not registered by the controller is
+        silently discarded in the data plane.
     */
-    table tcp_sessions {
-        key = {
-            hdr.ipv4.src_addr: exact;
-            hdr.tcp.src_port: exact;
-            hdr.ipv4.dst_addr: exact;
-            hdr.tcp.dst_port: exact;
-        }
-        actions = {
-            NoAction;
-            @defaultonly drop;
-        }
-        size = 1024;
-        const default_action = drop;
-    }
+    // Exercise 2.2 TO-DO: implement tcp_sessions.
 
 
     apply {
@@ -450,83 +391,23 @@ control IngressPipeImpl (inout parsed_headers_t    hdr,
             exit;
         }
 
-        /*
-                Exercise 2.0 TO-DO: Modify the apply block according to the
-                following algorithm:
-                1. If the packet contains valid Ethernet and IPv4 headers,
-                   then apply the l2_exact_table which will forward packets
-                   according the destination MAC address.
-                2. Otherwise, if the packet contains an Ethernet frame,
-                   apply the arp_exact table in order to reply ARP requests.
-                Hint 1: You might want to comment out the non-conditioned
-                application of l2_exact_table.
-                Hint 2: For Step 2, you need to check the value of the field
-                containing the type of content of the frame.
-
-        */
-
         /* Exercise 2.2 TO-DO: Process the packets.
            Complete the instructions indicated below.
         */
 
-        if(hdr.tcp.isValid()) {
+        // Exercise 2.2 TO-DO: add the TCP branch as the first branch of the
+        // chain below. If the packet carries a TCP segment, apply the
+        // tcp_sessions table: a match means the session is registered and the
+        // packet is forwarded with l2_exact_table, while a miss is dropped by
+        // the default action of the table.
 
-                if(tcp_sessions.apply().hit) {
-                        session_counter.count(0);
-                        l2_exact_table.apply();
-                } 
-                else {
-
-                        if(local_metadata.is_tcp_syn == 0
-                                || (hdr.tcp.syn == 1 && hdr.tcp.fin == 1)
-                                || (hdr.tcp.syn == 1 && hdr.tcp.rst == 1)) {
-
-
-                                hdr.tcp.setInvalid();
-                                hdr.tcp.setValid();
-                                hdr.tcp.syn = 0;
-                                hdr.tcp.rst = 1;
-                                hdr.tcp.ack = 1;
-                                hdr.tcp.fin = 0;
-                                hdr.tcp.psh = 0;
-                                hdr.tcp.urg = 0;
-                                hdr.tcp.seq_no = 1;
-                                hdr.tcp.ack_no = local_metadata.tcp_seq_no + 1;
-                                hdr.tcp.src_port = local_metadata.tcp_dst_port;
-                                hdr.tcp.dst_port = local_metadata.tcp_src_port;
-                                hdr.tcp.data_offset = 5;
-                                hdr.tcp.res = 0;
-                                hdr.tcp.ecn = 0;
-                                hdr.tcp.window = 0;
-                                hdr.tcp.urgent_ptr = 0;
-                                hdr.ipv4.src_addr = local_metadata.ip_dst_addr;
-                                hdr.ipv4.dst_addr = local_metadata.ip_src_addr;
-                                hdr.ethernet.src_addr = local_metadata.eth_dst_addr;
-                                hdr.ethernet.dst_addr = local_metadata.eth_src_addr;
-
-                                standard_metadata.egress_spec = local_metadata.ingress_port;
-
-                                // Count an event of session rejection
-                                rejects_counter.count(0);
-                        }
-                }
-
-
-        /*
-            Exercise 2.2 TO-DO: Process the IP traffic
-            Hint: you can use the l2_exact_table assuming you will have the required
-                  flow entries.
-        */
-        } else if (hdr.ethernet.isValid() && hdr.ipv4.isValid()){
-          l2_exact_table.apply();
-          // Finally, check if the packet is an ARP packet and try to replace
-          // it with the corresponding table. 
+        if (hdr.ethernet.isValid() && hdr.ipv4.isValid()) {
+                l2_exact_table.apply();
         } else if (hdr.ethernet.ether_type == ETHERTYPE_ARP) {
                 arp_exact.apply();
         } else {
-
-             // Otherwise, if the packet does not match anything, mark it to drop it.
-             mark_to_drop(standard_metadata);
+                // Otherwise, if the packet does not match anything, mark it to drop it.
+                mark_to_drop(standard_metadata);
         }
 
         // Apply the exact table so that controller takes care
@@ -608,13 +489,9 @@ control DeparserImpl(packet_out packet, in parsed_headers_t hdr) {
     apply {
         packet.emit(hdr.cpu_in);
         packet.emit(hdr.ethernet);
-        /*
-                Exercise 2.1 TO-DO: Include the ARP header in outgoing packets
-                where applicable
-        */
         packet.emit(hdr.arp);
         packet.emit(hdr.ipv4);
-        packet.emit(hdr.tcp);
+        // Exercise 2.2 TO-DO: emit TCP where applicable.
     }
 }
 

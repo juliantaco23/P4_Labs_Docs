@@ -37,9 +37,7 @@ header ethernet_t {
      *            This field identifies the encapsulated Layer 3 protocol
      *            (e.g., 0x0800 = IPv4, 0x0806 = ARP).
      * ─────────────────────────────────────────────────────────────────
-     * SOLUTION:
      */
-    bit<16>   etherType;
 }
 
 header ipv4_t {
@@ -50,20 +48,7 @@ header ipv4_t {
      *            ttl (8b), protocol (8b), hdrChecksum (16b),
      *            srcAddr (32b), dstAddr (32b).
      * ─────────────────────────────────────────────────────────────────
-     * SOLUTION:
      */
-    bit<4>    version;
-    bit<4>    ihl;
-    bit<8>    diffserv;
-    bit<16>   totalLen;
-    bit<16>   identification;
-    bit<3>    flags;
-    bit<13>   fragOffset;
-    bit<8>    ttl;
-    bit<8>    protocol;
-    bit<16>   hdrChecksum;
-    ip4Addr_t srcAddr;
-    ip4Addr_t dstAddr;
 }
 
 header tcp_t {
@@ -74,24 +59,7 @@ header tcp_t {
      *            urg/ack/psh/rst/syn/fin flags (1b each),
      *            window (16b), checksum (16b), urgentPtr (16b).
      * ─────────────────────────────────────────────────────────────────
-     * SOLUTION:
      */
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4>  dataOffset;
-    bit<3>  res;
-    bit<3>  ecn;
-    bit<1>  urg;
-    bit<1>  ack;
-    bit<1>  psh;
-    bit<1>  rst;
-    bit<1>  syn;
-    bit<1>  fin;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr;
 }
 
 struct metadata {
@@ -126,12 +94,7 @@ parser MyParser(packet_in packet,
          *            - IPv4 (TYPE_IPV4 = 0x0800) → parse_ipv4
          *            - Any other value            → accept
          * ─────────────────────────────────────────────────────────────────
-         * SOLUTION:
          */
-        transition select(hdr.ethernet.etherType) {
-            TYPE_IPV4: parse_ipv4;
-            default:   accept;
-        }
     }
 
     state parse_ipv4 {
@@ -141,12 +104,7 @@ parser MyParser(packet_in packet,
          *            - TCP (IP_PROTO_TCP = 6) → parse_tcp
          *            - Any other value          → accept
          * ─────────────────────────────────────────────────────────────────
-         * SOLUTION:
          */
-        transition select(hdr.ipv4.protocol) {
-            IP_PROTO_TCP: parse_tcp;
-            default:      accept;
-        }
     }
 
     state parse_tcp {
@@ -249,21 +207,7 @@ control MyIngress(inout headers hdr,
                  *   The RL controller reads these two registers to compute the
                  *   SYN excess (syn - synack) and determine the attack state.
                  * ─────────────────────────────────────────────────────────────────
-                 * SOLUTION:
                  */
-                if (hdr.tcp.isValid()) {
-                    if (hdr.tcp.syn == 1 && hdr.tcp.ack == 0) {
-                        // Pure SYN packet → possible SYN flood
-                        synReg.read(meta.cntSyn, (bit<32>)1);
-                        meta.cntSyn = meta.cntSyn + 1;
-                        synReg.write((bit<32>)1, meta.cntSyn);
-                    } else if (hdr.tcp.ack == 1) {
-                        // ACK / SYN-ACK / RST → legitimate response traffic
-                        synAckRstReg.read(meta.cntSynAck, (bit<32>)1);
-                        meta.cntSynAck = meta.cntSynAck + 1;
-                        synAckRstReg.write((bit<32>)1, meta.cntSynAck);
-                    }
-                }
             }
         }
     }

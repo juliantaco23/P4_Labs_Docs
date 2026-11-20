@@ -42,9 +42,7 @@ header ethernet_t {
      * TO-DO [1]: Add the EtherType field (bit<16>).
      *            This field indicates the encapsulated Layer 3 protocol.
      * ─────────────────────────────────────────────────────────────────
-     * SOLUTION: Declare the field as bit<16> etherType.
      */
-    bit<16> etherType;
 }
 
 // ── IPv4 ─────────────────────────────────────────────────────────────────
@@ -56,20 +54,7 @@ header ipv4_t {
      *            fragOffset (13b), ttl (8b), protocol (8b),
      *            hdrChecksum (16b), srcAddr (32b), dstAddr (32b).
      * ─────────────────────────────────────────────────────────────────
-     * SOLUTION:
      */
-    bit<4>    version;
-    bit<4>    ihl;
-    bit<8>    diffserv;
-    bit<16>   totalLen;
-    bit<16>   identification;
-    bit<3>    flags;
-    bit<13>   fragOffset;
-    bit<8>    ttl;
-    bit<8>    protocol;
-    bit<16>   hdrChecksum;
-    ip4Addr_t srcAddr;
-    ip4Addr_t dstAddr;
 }
 
 // ── TCP ──────────────────────────────────────────────────────────────────
@@ -81,24 +66,7 @@ header tcp_t {
      *            rst/syn/fin (1b each), window (16b), checksum (16b),
      *            urgentPtr (16b).
      * ─────────────────────────────────────────────────────────────────
-     * SOLUTION:
      */
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4>  dataOffset;
-    bit<3>  res;
-    bit<3>  ecn;
-    bit<1>  urg;
-    bit<1>  ack;
-    bit<1>  psh;
-    bit<1>  rst;
-    bit<1>  syn;
-    bit<1>  fin;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr;
 }
 
 // ── Metadata (partial outputs from the decision tree) ───────────────────
@@ -136,12 +104,7 @@ parser MyParser(packet_in packet,
          *            - If IPv4 (TYPE_IPV4 = 0x0800) → parse_ipv4
          *            - Otherwise → accept
          * ─────────────────────────────────────────────────────────
-         * SOLUTION:
          */
-        transition select(hdr.ethernet.etherType) {
-            TYPE_IPV4: parse_ipv4;
-            default:   accept;
-        }
     }
 
     state parse_ipv4 {
@@ -151,12 +114,7 @@ parser MyParser(packet_in packet,
          *            - If TCP (6) → parse_tcp
          *            - Otherwise → accept
          * ─────────────────────────────────────────────────────────
-         * SOLUTION:
          */
-        transition select(hdr.ipv4.protocol) {
-            IP_PROTO_TCP: parse_tcp;
-            default:      accept;
-        }
     }
 
     state parse_tcp {
@@ -212,9 +170,7 @@ control MyIngress(inout headers hdr,
          *            Store the featurevalue3 argument in the
          *            action_select3 field of the metadata struct.
          * ─────────────────────────────────────────────────────────────
-         * SOLUTION:
          */
-        meta.action_select3 = featurevalue3;
     }
 
     // ── Feature tables ────────────────────────────────────────────────────
@@ -255,9 +211,7 @@ control MyIngress(inout headers hdr,
              *            The match type must be "range" to
              *            express value intervals.
              * ─────────────────────────────────────────────────────
-             * SOLUTION:
              */
-            hdr.tcp.dstPort : range;     // Feature 3: TCP destination port
         }
         actions = {
             NoAction;
@@ -308,15 +262,7 @@ control MyIngress(inout headers hdr,
              *   packets these fields do not exist in the header,
              *   so bucket 1 is assigned (the "default" branch of the tree).
              * ──────────────────────────────────────────────────────────────
-             * SOLUTION:
              */
-            if (hdr.tcp.isValid()) {
-                feature2_exact.apply();
-                feature3_exact.apply();
-            } else {
-                meta.action_select2 = 1;
-                meta.action_select3 = 1;
-            }
         }
 
         // Step 2: the final table combines the three selects to decide the destination

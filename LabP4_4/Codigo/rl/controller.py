@@ -84,12 +84,8 @@ def read_register(register_name: str, index: int,
 
         Regex hint: r'=\s*(\d+)'  captures the number after '='.
     ────────────────────────────────────────────────────────────────────────────
-    SOLUTION:
     """
-    cmd    = f'register_read {register_name} {index}'
-    output = run_cli_command(cmd, thrift_port)
-    match  = re.search(r'=\s*(\d+)', output)
-    return int(match.group(1)) if match else 0
+    raise NotImplementedError('TO-DO [1]: implement read_register.')
 
 
 def reset_registers(thrift_port: int = DEFAULT_THRIFT_PORT) -> None:
@@ -126,21 +122,8 @@ def block_subnet(subnet_cidr: str, thrift_port: int = DEFAULT_THRIFT_PORT) -> No
 
         Print a message indicating which subnet was blocked.
     ────────────────────────────────────────────────────────────────────────────
-    SOLUTION:
     """
-    if subnet_cidr in _firewall_handles:
-        print(f"[FW] {subnet_cidr} already blocked.")
-        return
-
-    cmd    = f'table_add MyIngress.firewall MyIngress.block {subnet_cidr} => 1'
-    output = run_cli_command(cmd, thrift_port)
-    match  = re.search(r'handle (\d+)', output)
-    if match:
-        handle = int(match.group(1))
-        _firewall_handles[subnet_cidr] = handle
-        print(f"[FW] BLOCKED {subnet_cidr} (handle {handle})")
-    else:
-        print(f"[FW] ERROR blocking {subnet_cidr}: {output.strip()}", file=sys.stderr)
+    raise NotImplementedError('TO-DO [2]: implement block_subnet.')
 
 
 def unblock_subnet(subnet_cidr: str, thrift_port: int = DEFAULT_THRIFT_PORT) -> None:
@@ -158,16 +141,8 @@ def unblock_subnet(subnet_cidr: str, thrift_port: int = DEFAULT_THRIFT_PORT) -> 
 
         If not registered, print that it was already free.
     ────────────────────────────────────────────────────────────────────────────
-    SOLUTION:
     """
-    if subnet_cidr not in _firewall_handles:
-        print(f"[FW] {subnet_cidr} was not blocked.")
-        return
-
-    handle = _firewall_handles.pop(subnet_cidr)
-    cmd    = f'table_delete MyIngress.firewall {handle}'
-    run_cli_command(cmd, thrift_port)
-    print(f"[FW] UNBLOCKED {subnet_cidr} (handle {handle})")
+    raise NotImplementedError('TO-DO [3]: implement unblock_subnet.')
 
 
 def unblock_all(thrift_port: int = DEFAULT_THRIFT_PORT) -> None:
